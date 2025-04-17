@@ -18,16 +18,34 @@ class Atoms(NamedTuple):
 
 @cuda.jit(device=True, inline=True)
 def distance_squared(ri: Array, rj: Array) -> Float:
-    distance = 0.0
+    distance2 = 0.0
     for d in range(ri.shape[0]):
-        dx = ri[d] - rj[d]
-        distance += dx * dx
-    return distance
+        diff = ri[d] - rj[d]
+        distance2 += diff * diff
+    return distance2
 
 
 @cuda.jit(device=True, inline=True)
 def distance(ri: Array, rj: Array) -> Float:
     return math.sqrt(distance_squared(ri, rj))
+
+
+@cuda.jit(device=True, inline=True)
+def subtract(ri: Array, rj: Array, result: Array) -> None:
+    for d in range(ri.shape[0]):
+        result[d] = ri[d] - rj[d]
+
+
+@cuda.jit(device=True, inline=True)
+def cosine_ijk(rij: Array, rik: Array) -> Float:
+    norm_ij = 0.0
+    norm_ik = 0.0
+    dot_product = 0.0
+    for d in range(rij.shape[0]):
+        norm_ij += rij[d] * rij[d]
+        norm_ik += rik[d] * rik[d]
+        dot_product += rij[d] * rik[d]
+    return dot_product / (norm_ij * norm_ik)
 
 
 class Neighbors(NamedTuple):
@@ -43,7 +61,6 @@ def find_neighbors(
 ) -> None:
     natoms = atoms.positions.shape[0]
     r_cut2 = r_cut * r_cut
-
     i = cuda.grid(1)
     if i < natoms:
         neighbors_count = 0
@@ -73,7 +90,7 @@ class G2Coefs(NamedTuple):
 
 
 @cuda.jit(device=True, inline=True)
-def symmetry_function_g2(rij: Float, coefs: G2Coefs) -> Float:
+def G2(rij: Float, coefs: G2Coefs) -> Float:
     return math.exp(-coefs.eta * (rij - coefs.r_shift) ** 2)
 
 
@@ -95,49 +112,89 @@ def build_radial(
         atom_type_center, atom_type_neighbor = between
         total = 0.0
         if i < natoms and atom_type_center == atoms.types[i]:
+            # ---
             for j in range(neighbors.sizes[i]):
                 nj = neighbors.indices[i][j]
                 if atom_type_neighbor == atoms.types[nj]:
                     rij = distance(atoms.positions[i], atoms.positions[nj])
-                    if rij < r_cut:
-                        total += symmetry_function(rij, coefs) * cutoff(rij, r_cut)
+                    if rij > r_cut:
+                        continue
+                    # ---
+                    total += symmetry_function(rij, coefs) * cutoff(rij, r_cut)
             result[i] = total
+
     return compute
 
-# def build_angular(
-#     symmetry_function: Callable,
-#     cutoff: Callable,
-# ) -> Callable:
-#     @cuda.jit
-#     def compute(
-#         atoms: Atoms,
-#         neighbors: Neighbors,
-#         between: tuple[Index, Index, Index],
-#         coefs: tuple[Float, ...],
-#         r_cut: Float,
-#         result: Array,
-#     ) -> None:
-#         i = cuda.grid(1)
-#         natoms = atoms.positions.shape[0]
-#         atom_type_center, atom_type_neighbor_1, atom_type_neighbor_2 = between
-#         total = 0.0
-#         if i < natoms and atom_type_center == atoms.types[i]:
-#
-#             for j in range(neighbors.sizes[i]):
-#                 nj = neighbors.indices[i][j]
-#
-#                 if atom_type_neighbor_1 == atoms.types[nj]:
-#                     rij = distance(atoms.positions[i], atoms.positions[nj])
-#
-#                     for k in range(neighbors.sizes[i]):
-#                         nk = neighbors.indices[i][k]
-#                         
-#                         if atom_type_neighbor_2 == atoms.types[nk]:
-#                         if rij < r_cut:
-#                             total += symmetry_function(rij, coefs) * cutoff(rij, r_cut)
-#             result[i] = total
-#     return compute
-#
+
+class G3Coefs(NamedTuple):
+    zeta: Float
+    lambda0: Float
+    eta: Float
+
+
+@cuda.jit(device=True, inline=True)
+def G3(rij: Float, rik: Float, rjk: Float, cost: Float, coefs: G3Coefs) -> Array:
+    return (
+        math.pow(2.0, 1.0 - coefs.zeta)
+        * math.pow(1 + coefs.lambda0 * cost, coefs.zeta)
+        * math.exp(-coefs.eta * (rij**2 + rik**2 + rjk**2))
+    )
+
+
+def build_angular(
+    symmetry_function: Callable,
+    cutoff: Callable,
+) -> Callable:
+    @cuda.jit
+    def compute(
+        atoms: Atoms,
+        neighbors: Neighbors,
+        between: tuple[Index, Index, Index],
+        coefs: tuple[Float, ...],
+        r_cut: Float,
+        result: Array,
+    ) -> None:
+        i = cuda.grid(1)
+        natoms = atoms.positions.shape[0]
+        atom_type_center, atom_type_neighbor_1, atom_type_neighbor_2 = between
+
+        rij_vec = cuda.local.array(3, dtype=Float)
+        rik_vec = cuda.local.array(3, dtype=Float)
+        total = 0.0
+        if i < natoms and atom_type_center == atoms.types[i]:
+            # ---
+            for j in range(neighbors.sizes[i]):
+                nj = neighbors.indices[i][j]
+                if atom_type_neighbor_1 == atoms.types[nj]:
+                    rij = distance(atoms.positions[i], atoms.positions[nj])
+                    if rij > r_cut:
+                        continue
+                    # ---
+                    for k in range(neighbors.sizes[i]):
+                        nk = neighbors.indices[i][k]
+                        if atom_type_neighbor_2 == atoms.types[nk]:
+                            rik = distance(atoms.positions[i], atoms.positions[nk])
+                            if rik > r_cut:
+                                continue
+                            # ---
+                            rjk = distance(atoms.positions[nj], atoms.positions[nk])
+                            if rjk > r_cut:
+                                continue
+                            # ---
+                            subtract(atoms.positions[i], atoms.positions[nj], rij_vec)
+                            subtract(atoms.positions[i], atoms.positions[nk], rik_vec)
+                            cost = cosine_ijk(rij_vec, rik_vec)
+                            # ---
+                            total += (
+                                symmetry_function(rij, rik, rjk, cost, coefs)
+                                * cutoff(rij, r_cut)
+                                * cutoff(rik, r_cut)
+                                * cutoff(rjk, r_cut)
+                            )
+            result[i] = total
+
+    return compute
+
 
 if __name__ == "__main__":
 
@@ -158,16 +215,27 @@ if __name__ == "__main__":
     print(f"CUDA kernel: [{threads_per_block=}, {blocks=}]")
 
     r_cut = Float(1.5)
-    coefs = G2Coefs(Float(0.1), Float(0.0))
-    compute_g2 = [build_radial(symmetry_function_g2, cutoff_tanh) for _ in range(100)]
+    coefs_g2 = G2Coefs(Float(0.1), Float(0.0))
+    coefs_g3 = G3Coefs(Float(0.1), Float(0.2), Float(0.3))
+
+    compute_g2 = build_radial(G2, cutoff_tanh)
+    compute_g3 = build_angular(G3, cutoff_cosine)
 
     find_neighbors[blocks, threads_per_block](atoms, r_cut, neighbors)
-    for _ in range(1, 1_000):
-        compute_g2[_ % 10][blocks, threads_per_block](
+    for _ in range(1, 5_00):
+        compute_g2[blocks, threads_per_block](
             atoms,
             neighbors,
-            (1, 1),
-            coefs,
+            (1, 2),
+            coefs_g2,
+            r_cut * 5_000 / _,
+            descriptors,
+        )
+        compute_g3[blocks, threads_per_block](
+            atoms,
+            neighbors,
+            (2, 1, 2),
+            coefs_g3,
             r_cut * 5_000 / _,
             descriptors,
         )
