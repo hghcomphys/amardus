@@ -1,4 +1,4 @@
-#Amardus
+# Amardus
 A GPU-accelerated Python Library for Calculating Atomic Descriptors.
 
 > *Amardus* is the Greek name for the *Sefid-Rud*, a long river in northern Iran historically known for its abundant fish.
