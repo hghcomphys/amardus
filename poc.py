@@ -14,20 +14,31 @@ IndexArray = NDArray[Index]
 class Atoms(NamedTuple):
     positions: Array
     types: IndexArray
+    lattice: Array
 
 
 @cuda.jit(device=True, inline=True)
-def distance_squared(ri: Array, rj: Array) -> Float:
-    distance2 = 0.0
+def apply_pbc(dx: Float, l: Float) -> Float:
+    if dx > 0.5 * l:
+        dx -= l
+    if dx < -0.5 * l:
+        dx += l
+    return dx
+
+
+@cuda.jit(device=True, inline=True)
+def distance_squared(ri: Array, rj: Array, lattice: Array) -> Float:
+    result = 0.0
     for d in range(ri.shape[0]):
-        diff = ri[d] - rj[d]
-        distance2 += diff * diff
-    return distance2
+        dx = ri[d] - rj[d]
+        dx = apply_pbc(dx, lattice[d][d])
+        result += dx * dx
+    return result
 
 
 @cuda.jit(device=True, inline=True)
-def distance(ri: Array, rj: Array) -> Float:
-    return math.sqrt(distance_squared(ri, rj))
+def distance(ri: Array, rj: Array, lattice: Array) -> Float:
+    return math.sqrt(distance_squared(ri, rj, lattice))
 
 
 @cuda.jit(device=True, inline=True)
@@ -38,14 +49,13 @@ def subtract(ri: Array, rj: Array, result: Array) -> None:
 
 @cuda.jit(device=True, inline=True)
 def cosine_ijk(rij: Array, rik: Array) -> Float:
-    norm_ij = 0.0
-    norm_ik = 0.0
+    rij2, rik2 = 0.0, 0.0
     dot_product = 0.0
     for d in range(rij.shape[0]):
-        norm_ij += rij[d] * rij[d]
-        norm_ik += rik[d] * rik[d]
+        rij2 += rij[d] * rij[d]
+        rik2 += rik[d] * rik[d]
         dot_product += rij[d] * rik[d]
-    return dot_product / (norm_ij * norm_ik)
+    return dot_product / math.sqrt(rij2 * rik2)
 
 
 class Neighbors(NamedTuple):
@@ -67,7 +77,11 @@ def find_neighbors(
         for j in range(natoms):
             if i == j:
                 continue
-            dist2 = distance_squared(atoms.positions[i], atoms.positions[j])
+            dist2 = distance_squared(
+                atoms.positions[i],
+                atoms.positions[j],
+                atoms.lattice,
+            )
             if dist2 < r_cut2:
                 result.indices[i][neighbors_count] = j
                 neighbors_count += 1
@@ -94,7 +108,7 @@ def G2(rij: Float, coefs: G2Coefs) -> Float:
     return math.exp(-coefs.eta * (rij - coefs.r_shift) ** 2)
 
 
-def build_radial(
+def get_radial(
     symmetry_function: Callable,
     cutoff: Callable,
 ) -> Callable:
@@ -103,7 +117,7 @@ def build_radial(
         atoms: Atoms,
         neighbors: Neighbors,
         between: tuple[Index, Index],
-        coefs: tuple[Float, ...],
+        coefs: NamedTuple,
         r_cut: Float,
         result: Array,
     ) -> None:
@@ -116,7 +130,11 @@ def build_radial(
             for j in range(neighbors.sizes[i]):
                 nj = neighbors.indices[i][j]
                 if atom_type_neighbor == atoms.types[nj]:
-                    rij = distance(atoms.positions[i], atoms.positions[nj])
+                    rij = distance(
+                        atoms.positions[i],
+                        atoms.positions[nj],
+                        atoms.lattice,
+                    )
                     if rij > r_cut:
                         continue
                     # ---
@@ -141,7 +159,7 @@ def G3(rij: Float, rik: Float, rjk: Float, cost: Float, coefs: G3Coefs) -> Array
     )
 
 
-def build_angular(
+def get_angular(
     symmetry_function: Callable,
     cutoff: Callable,
 ) -> Callable:
@@ -166,18 +184,30 @@ def build_angular(
             for j in range(neighbors.sizes[i]):
                 nj = neighbors.indices[i][j]
                 if atom_type_neighbor_1 == atoms.types[nj]:
-                    rij = distance(atoms.positions[i], atoms.positions[nj])
+                    rij = distance(
+                        atoms.positions[i],
+                        atoms.positions[nj],
+                        atoms.lattice,
+                    )
                     if rij > r_cut:
                         continue
                     # ---
                     for k in range(neighbors.sizes[i]):
                         nk = neighbors.indices[i][k]
                         if atom_type_neighbor_2 == atoms.types[nk]:
-                            rik = distance(atoms.positions[i], atoms.positions[nk])
+                            rik = distance(
+                                atoms.positions[i],
+                                atoms.positions[nk],
+                                atoms.lattice,
+                            )
                             if rik > r_cut:
                                 continue
                             # ---
-                            rjk = distance(atoms.positions[nj], atoms.positions[nk])
+                            rjk = distance(
+                                atoms.positions[nj],
+                                atoms.positions[nk],
+                                atoms.lattice,
+                            )
                             if rjk > r_cut:
                                 continue
                             # ---
@@ -201,9 +231,14 @@ if __name__ == "__main__":
     N = 1_000
     np.random.seed(0)
     positions = (np.random.rand(N, 3) * 10).astype(Float)
+    lattice = np.eye(3, dtype=Float) * 10
     types = np.ones(N, dtype=Index)
     types[::2] = 2
-    atoms = Atoms(positions=cuda.to_device(positions), types=cuda.to_device(types))
+    atoms = Atoms(
+        positions=cuda.to_device(positions),
+        types=cuda.to_device(types),
+        lattice=cuda.to_device(lattice),
+    )
     neighbors = Neighbors(
         indices=cuda.device_array((N, N), dtype=Index),
         sizes=cuda.device_array(N, dtype=Index),
@@ -218,11 +253,11 @@ if __name__ == "__main__":
     coefs_g2 = G2Coefs(Float(0.1), Float(0.0))
     coefs_g3 = G3Coefs(Float(0.1), Float(0.2), Float(0.3))
 
-    compute_g2 = build_radial(G2, cutoff_tanh)
-    compute_g3 = build_angular(G3, cutoff_cosine)
+    compute_g2 = get_radial(G2, cutoff_tanh)
+    compute_g3 = get_angular(G3, cutoff_cosine)
 
     find_neighbors[blocks, threads_per_block](atoms, r_cut, neighbors)
-    for _ in range(1, 5_00):
+    for _ in range(1, 1_00):
         compute_g2[blocks, threads_per_block](
             atoms,
             neighbors,
