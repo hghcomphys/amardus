@@ -49,12 +49,12 @@ def subtract(ri: Array, rj: Array, result: Array) -> None:
 
 @cuda.jit(device=True, inline=True)
 def cosine_ijk(rij: Array, rik: Array) -> Float:
-    rij2, rik2 = 0.0, 0.0
     dot_product = 0.0
+    rij2, rik2 = 0.0, 0.0
     for d in range(rij.shape[0]):
+        dot_product += rij[d] * rik[d]
         rij2 += rij[d] * rij[d]
         rik2 += rik[d] * rik[d]
-        dot_product += rij[d] * rik[d]
     return dot_product / math.sqrt(rij2 * rik2)
 
 
@@ -109,8 +109,8 @@ def G2(rij: Float, coefs: G2Coefs) -> Float:
 
 
 def get_radial(
-    symmetry_function: Callable,
-    cutoff: Callable,
+    symmetry_function: Callable[[Float, Float], Float],
+    cutoff: Callable[[Float, Float], Float],
 ) -> Callable:
     @cuda.jit
     def compute(
@@ -226,14 +226,60 @@ def get_angular(
     return compute
 
 
+def read_structure(
+    file: str,
+    element_map: dict[str, int],
+    ) -> tuple:
+    types = []
+    lattice = []
+    positions = []
+    with open(file, "r") as fp:
+        for line in fp:
+            tokens = line.strip().split()
+            if tokens[0] == "atom":
+                positions.append(
+                    [
+                        float(tokens[1]),
+                        float(tokens[2]),
+                        float(tokens[3]),
+                    ]
+                )
+                types.append(element_map[tokens[4]])
+            if tokens[0] == "lattice":
+                lattice.append(
+                    [
+                        float(tokens[1]),
+                        float(tokens[2]),
+                        float(tokens[3]),
+                    ]
+                )
+            if tokens[0] == "end":
+                break
+    return (
+        np.array(positions, dtype=Float),
+        np.array(types, dtype=Index),
+        np.array(lattice, dtype=Float),
+    )
+
+
 if __name__ == "__main__":
 
-    N = 1_000
-    np.random.seed(0)
-    positions = (np.random.rand(N, 3) * 10).astype(Float)
-    lattice = np.eye(3, dtype=Float) * 10
-    types = np.ones(N, dtype=Index)
-    types[::2] = 2
+    # N = 1_000
+    # np.random.seed(0)
+    # positions = (np.random.rand(N, 3) * 10).astype(Float)
+    # lattice = np.eye(3, dtype=Float) * 10
+    # types = np.ones(N, dtype=Index)
+    # types[::2] = 2
+    # r_cut = Float(1.5)
+
+    positions, types, lattice = read_structure(
+        file="input.data",
+        element_map={"H": 1, "O": 2},
+    )
+    N = positions.shape[0]
+    r_cut = Float(12.0)
+
+    print("Atoms:", N)
     atoms = Atoms(
         positions=cuda.to_device(positions),
         types=cuda.to_device(types),
@@ -249,32 +295,36 @@ if __name__ == "__main__":
     blocks = math.ceil(N / threads_per_block)
     print(f"CUDA kernel: [{threads_per_block=}, {blocks=}]")
 
-    r_cut = Float(1.5)
-    coefs_g2 = G2Coefs(Float(0.1), Float(0.0))
-    coefs_g3 = G3Coefs(Float(0.1), Float(0.2), Float(0.3))
+    g2_coefs = G2Coefs(Float(0.1), Float(0.0))
+    g3_coefs = G3Coefs(Float(0.1), Float(0.2), Float(0.3))
 
     compute_g2 = get_radial(G2, cutoff_tanh)
     compute_g3 = get_angular(G3, cutoff_cosine)
 
+    print("Finding Neighbor Atoms")
     find_neighbors[blocks, threads_per_block](atoms, r_cut, neighbors)
-    for _ in range(1, 1_00):
+
+    print("Computing ACSF Desriptors")
+    for _ in range(1, 25):
         compute_g2[blocks, threads_per_block](
             atoms,
             neighbors,
             (1, 2),
-            coefs_g2,
-            r_cut * 5_000 / _,
+            g2_coefs,
+            r_cut,
             descriptors,
         )
         compute_g3[blocks, threads_per_block](
             atoms,
             neighbors,
             (2, 1, 2),
-            coefs_g3,
-            r_cut * 5_000 / _,
+            g3_coefs,
+            r_cut,
             descriptors,
         )
     cuda.synchronize()
 
     print(neighbors.sizes.copy_to_host()[:5])
     print(descriptors.copy_to_host()[:5])
+
+    print("Done.")
