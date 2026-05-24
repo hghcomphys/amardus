@@ -17,4 +17,27 @@ Todos:
 - [ ] Free energy calculation
 - [ ] GPU implementation
 
+---
+
+## Setup the environment
+
+```bash
+pixi install
+```
+
+## Generate structure
+
+```bash
+pixi run python generate_structure.py --lattice 6 6 6
+```
+
+## Run benchmark simulation 
+
+```bash
+pixi run lmp < in.lmp
+
+```
+
+
+
 
