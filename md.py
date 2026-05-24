@@ -24,7 +24,7 @@ ORDER = "C"
 K_B = 8.617343e-5  # eV/K 
 femtosecond = 1.0 / 1.018051e1  
 bar = 1.0 / 1.602e6 
-kgm3 = 1.0 / 1411
+grcm3 = 1.0 / 1.66054 
 
 
 class Parameters(NamedTuple):
@@ -80,13 +80,14 @@ def simulate(
             f"{'Step':8}"
             f" {'Temp[K]':10}"
             f" {'Pres[bar]':10}"
-            f" {'Dens[kg/m3]':10}"
-            f" {'KinE[eV]':10}"
+            f" {'Dens[gr/cm3]':10}"
             f" {'PotE[eV]':10}"
+            f" {'KinE[eV]':10}"
             f" {'TotE[eV]':10}"
             f" {'UpdateNb':10}"
             f" {'AvgNb':10}"
             f" {'AvgCell':10}"
+            f" {'L[A]':10}"
         )
         num_neighbor_updates = 1
         for step in range(steps):
@@ -96,22 +97,23 @@ def simulate(
                 pe = potential_energy[0]
                 temp = get_temperature(particles)
                 pres = get_pressure(particles, virial)
-                vol = particles.box[0] * particles.box[4] * particles.box[8]
+                vol = np.linalg.det(particles.box) 
                 dens = np.sum(particles.mass) / vol
                 print(
                     f"{step:<8}"
                     # f" {step * params.time_step:<12.8f}"
                     f" {temp:<10.4f}"
                     f" {pres / bar:<10.4f}"
-                    f" {dens / kgm3:<10.4f}"
-                    f" {ke:<10.4f}"
+                    f" {dens / grcm3:<10.6f}"
                     f" {pe:<10.4f}"
+                    f" {ke:<10.4f}"
                     f" {ke + pe:<10.4f}"
                     f" {num_neighbor_updates:<10}"
                     f" {neighbors.num_neighbors_per_atom.mean():<10.2f}"
                     f" {cells.num_atoms_per_cell.mean():<10.2f}"
+                    f" {particles.box[2, 2]:<10.4f}"
                 )
-                # save(particles.position, file)
+                # save(particles, file)
             # Next time step (update r, v, and F)
             verlet_integration_position(particles, params)
             if check_if_neighbor_need_update(particles, params):
@@ -124,7 +126,7 @@ def simulate(
 
 @njit
 def get_pressure(particles: Particles, virial: Array) -> float:
-    vol = particles.box[0] * particles.box[4] * particles.box[8]
+    vol = np.linalg.det(particles.box) 
     temp = get_temperature(particles)
     natoms = particles.position.shape[0]
     pres = (natoms * K_B * temp + virial[0] / 3.0 ) / vol
@@ -166,7 +168,6 @@ def thermostat(particles, params) -> None:
         v[i, 2] *= scale
 
 
-
 @njit
 def compute_force(
     particles: Particles,
@@ -189,7 +190,7 @@ def compute_force(
     force = particles.force
     position = particles.position
     cutoff2 = params.cutoff_radius * params.cutoff_radius
-    length = box[0], box[4], box[8]
+    length = box[0, 0], box[1, 1], box[2, 2]
 
     potential_energy[0] = FLOAT(0.0)
     virial[0] = FLOAT(0.0)
@@ -234,7 +235,7 @@ def update_neighbors(
 ) -> None:
     neighbor_cutoff2 = (params.cutoff_radius + params.skin_radius) ** 2
     box, position = particles.box, particles.position
-    length = box[0], box[4], box[8]
+    length = box[0, 0], box[1, 1], box[2, 2]
     nc = cells.sizes
 
     # Cell list
@@ -339,7 +340,7 @@ def initialize_neighbors(
     box: Array,
 ) -> tuple[CellList, NeighborList]:
     cell_length = params.cutoff_radius
-    length = box[0], box[4], box[8]
+    length = box[0, 0], box[1, 1], box[2, 2]
     cell_sizes = (
         int(length[0] / cell_length),
         int(length[1] / cell_length),
@@ -425,7 +426,7 @@ def verlet_integration_position(
 ) -> None:
     dt = params.time_step
     m, r, v, f, box, _ = particles
-    length = box[0], box[4], box[8]
+    length = box[0, 0], box[1, 1], box[2, 2]
     for n in range(params.num_atoms):
         for dim in range(3):
             r[n, dim] = np.fmod(
@@ -502,15 +503,15 @@ def main() -> None:
         cutoff_radius=9.0,  # Angstrom
         skin_radius=1.0,  # Angstrom
         thermostat_coupling_time= 10 * time_step,
-        barostat_coupling_time= 0.1 * time_step,
-        compressibility= 1.0e0,
+        barostat_coupling_time= 100 * time_step,
+        compressibility= 1.0e1,
         neighbor_max_atoms=500,
     )
     mass = np.array([ATOMIC_MASS[a[0]] for a in atoms])
     position = np.array([a[1:4] for a in atoms], dtype=FLOAT, order=ORDER)
     velocity = generate_velocity(mass, params.temperature)
     force = np.empty((len(atoms), 3), dtype=FLOAT, order=ORDER)
-    box = np.array(box, dtype=FLOAT).reshape(9)
+    box = np.array(box, dtype=FLOAT).reshape(3, 3)
     particles = Particles(
         mass=mass,
         position=position,
@@ -520,7 +521,7 @@ def main() -> None:
         position_old=position.copy(),
     )
     print(f"Number of atoms: {params.num_atoms}")
-    print(f"Box matrix H:\n{particles.box.reshape(3, 3)}")
+    # print(f"Box matrix H:\n{particles.box.reshape(3, 3)}")
     simulate(params, particles, steps=100_001)
     print("Done.")
 
