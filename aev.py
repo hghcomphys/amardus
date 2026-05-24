@@ -28,7 +28,7 @@ def apply_pbc(dx: Float, l: Float) -> Float:
 
 @cuda.jit(device=True, inline=True)
 def distance_squared(ri: Array, rj: Array, lattice: Array) -> Float:
-    result = 0.0
+    result = Float(0.0)
     for d in range(ri.shape[0]):
         dx = ri[d] - rj[d]
         dx = apply_pbc(dx, lattice[d][d])
@@ -38,7 +38,7 @@ def distance_squared(ri: Array, rj: Array, lattice: Array) -> Float:
 
 @cuda.jit(device=True, inline=True)
 def distance(ri: Array, rj: Array, lattice: Array) -> Float:
-    return math.sqrt(distance_squared(ri, rj, lattice))
+    return Float(math.sqrt(distance_squared(ri, rj, lattice)))
 
 
 @cuda.jit(device=True, inline=True)
@@ -49,8 +49,8 @@ def subtract(ri: Array, rj: Array, result: Array) -> None:
 
 @cuda.jit(device=True, inline=True)
 def cosine_ijk(rij: Array, rik: Array) -> Float:
-    dot_product = 0.0
-    rij2, rik2 = 0.0, 0.0
+    dot_product = Float(0.0)
+    rij2, rik2 = Float(0.0), Float(0.0)
     for d in range(rij.shape[0]):
         dot_product += rij[d] * rik[d]
         rij2 += rij[d] * rij[d]
@@ -90,12 +90,12 @@ def find_neighbors(
 
 @cuda.jit(device=True, inline=True)
 def cutoff_tanh(r: Float, r_cut: Float) -> Float:
-    return math.tanh(1.0 - r / r_cut) ** 3
+    return Float(math.tanh(1.0 - r / r_cut)) ** 3
 
 
 @cuda.jit(device=True, inline=True)
 def cutoff_cosine(r: Float, r_cut: Float) -> Float:
-    return 0.5 * (math.cos(math.pi * r / r_cut) + 1.0)
+    return Float(0.5) * (math.cos(math.pi * r / r_cut) + 1.0)
 
 
 class G2Coefs(NamedTuple):
@@ -105,7 +105,7 @@ class G2Coefs(NamedTuple):
 
 @cuda.jit(device=True, inline=True)
 def G2(rij: Float, coefs: G2Coefs) -> Float:
-    return math.exp(-coefs.eta * (rij - coefs.r_shift) ** 2)
+    return Float(math.exp(-coefs.eta * (rij - coefs.r_shift) ** 2))
 
 
 def get_radial(
@@ -124,7 +124,7 @@ def get_radial(
         i = cuda.grid(1)
         natoms = atoms.positions.shape[0]
         atom_type_center, atom_type_neighbor = between
-        total = 0.0
+        total = Float(0.0)
         if i < natoms and atom_type_center == atoms.types[i]:
             # ---
             for j in range(neighbors.sizes[i]):
@@ -305,7 +305,7 @@ if __name__ == "__main__":
     find_neighbors[blocks, threads_per_block](atoms, r_cut, neighbors)
 
     print("Computing ACSF Desriptors")
-    for _ in range(1, 25):
+    for _ in range(1, 1_00):
         compute_g2[blocks, threads_per_block](
             atoms,
             neighbors,

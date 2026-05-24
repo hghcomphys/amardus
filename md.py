@@ -80,14 +80,14 @@ def simulate(
             f"{'Step':8}"
             f" {'Temp[K]':10}"
             f" {'Pres[bar]':10}"
-            f" {'Dens[gr/cm3]':10}"
             f" {'PotE[eV]':10}"
             f" {'KinE[eV]':10}"
             f" {'TotE[eV]':10}"
             f" {'UpdateNb':10}"
             f" {'AvgNb':10}"
             f" {'AvgCell':10}"
-            f" {'L[A]':10}"
+            f" {'L[Å]':10}"
+            f" {'Dens[gr/cm3]':10}"
         )
         num_neighbor_updates = 1
         for step in range(steps):
@@ -101,22 +101,22 @@ def simulate(
                 dens = np.sum(particles.mass) / vol
                 print(
                     f"{step:<8}"
-                    # f" {step * params.time_step:<12.8f}"
                     f" {temp:<10.4f}"
                     f" {pres / bar:<10.4f}"
-                    f" {dens / grcm3:<10.6f}"
                     f" {pe:<10.4f}"
                     f" {ke:<10.4f}"
                     f" {ke + pe:<10.4f}"
                     f" {num_neighbor_updates:<10}"
                     f" {neighbors.num_neighbors_per_atom.mean():<10.2f}"
                     f" {cells.num_atoms_per_cell.mean():<10.2f}"
-                    f" {particles.box[2, 2]:<10.4f}"
+                    f" {math.pow(vol, 1/3):<10.4f}"
+                    f" {dens / grcm3:<10.6f}"
                 )
                 # save(particles, file)
             # Next time step (update r, v, and F)
             verlet_integration_position(particles, params)
             if check_if_neighbor_need_update(particles, params):
+                # cells = initialize_cells(params, particles.box)
                 update_neighbors(particles, params, cells, neighbors)
                 num_neighbor_updates += 1
             compute_force(particles, params, neighbors, potential_energy, virial)
@@ -334,11 +334,10 @@ def generate_velocity(
     velocity -= vcm
     return velocity
 
-
-def initialize_neighbors(
+def initialize_cells(
     params: Parameters,
     box: Array,
-) -> tuple[CellList, NeighborList]:
+) -> CellList:
     cell_length = params.cutoff_radius
     length = box[0, 0], box[1, 1], box[2, 2]
     cell_sizes = (
@@ -348,11 +347,11 @@ def initialize_neighbors(
     )
     for size in cell_sizes:
         assert size > 2, print(f"{cell_sizes=}")
-    # Cell list
+
     system_volume = math.prod(length)
     cell_volume = cell_length**3
     cell_max_atoms = 3 * int(params.num_atoms / system_volume * cell_volume)
-    print("Cell max atoms:", cell_max_atoms)
+    # print("Cell max atoms:", cell_max_atoms)
 
     cell_atom_index = np.empty(
         shape=(math.prod(cell_sizes), cell_max_atoms),
@@ -367,6 +366,14 @@ def initialize_neighbors(
         num_atoms_per_cell=cell_num_atoms,
         atom_index=cell_atom_index,
     )
+    return cells
+ 
+def initialize_neighbors(
+    params: Parameters,
+    box: Array,
+) -> tuple[CellList, NeighborList]:
+    # Cell list
+    cells = initialize_cells(params, box) 
     # Neighbor list
     neighbor_index = np.empty(
         shape=(params.num_atoms, params.neighbor_max_atoms),
@@ -380,9 +387,8 @@ def initialize_neighbors(
         num_neighbors_per_atom=neighbor_num_atoms,
         neighbor_index=neighbor_index,
     )
-    print(f"Cell length:", params.cutoff_radius)
-    print(f"Cell sizes: {cells.sizes}")
-
+    # print(f"Cell length:", params.cutoff_radius)
+    # print(f"Cell sizes: {cells.sizes}")
     return (
         cells,
         neighbors,
