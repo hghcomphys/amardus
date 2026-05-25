@@ -71,9 +71,9 @@ def simulate(
     cells, neighbors = initialize_neighbors(params, box)
     update_neighbors(particles, params, cells, neighbors)
 
-    potential_energy = np.empty(1, dtype=FLOAT)
+    potential = np.empty(1, dtype=FLOAT)
     virial = np.empty(1, dtype=FLOAT)
-    compute_force(particles, params, neighbors, potential_energy, virial)
+    compute_short_forces(particles, params, neighbors, potential, virial)
     with open(filename, "w") as file:
         # Simulate
         print(
@@ -94,7 +94,7 @@ def simulate(
             if step % log_frequency == 0:
 
                 ke = get_kinetic_energy(particles)
-                pe = potential_energy[0]
+                pe = potential[0]
                 temp = get_temperature(particles)
                 pres = get_pressure(particles, virial)
                 vol = np.linalg.det(particles.box) 
@@ -119,10 +119,10 @@ def simulate(
                 # cells = initialize_cells(params, particles.box)
                 update_neighbors(particles, params, cells, neighbors)
                 num_neighbor_updates += 1
-            compute_force(particles, params, neighbors, potential_energy, virial)
+            compute_short_forces(particles, params, neighbors, potential, virial)
             verlet_integration_velocity(particles, params)
-            thermostat(particles, params)
-            barostat(particles, params, virial)
+            # thermostat(particles, params)
+            # barostat(particles, params, virial)
 
 @njit
 def get_pressure(particles: Particles, virial: Array) -> float:
@@ -144,12 +144,7 @@ def barostat(particles: Particles, params: Parameters, virial: Array) -> None:
     box = particles.box
 
     scale = (1.0 - beta * dt / tau * (p0 - p))**(1.0/3.0)
-
-    for i in range(params.num_atoms):
-        pos[i,0] *= scale
-        pos[i,1] *= scale
-        pos[i,2] *= scale
-
+    pos[:] *= scale
     box[:] *= scale
 
 
@@ -162,29 +157,20 @@ def thermostat(particles, params) -> None:
     v = particles.velocity
 
     scale = FLOAT(math.sqrt(FLOAT(1.0) + (dt / tau) * (t0/t - FLOAT(1.0))))
-    for i in range(params.num_atoms):
-        v[i, 0] *= scale
-        v[i, 1] *= scale
-        v[i, 2] *= scale
+    v[:] *= scale
 
 
 @njit
-def compute_force(
+def compute_short_forces(
     particles: Particles,
     params: Parameters,
     neighbors: NeighborList,
-    potential_energy: Array,
+    potential: Array,
     virial: Array,
 ) -> None:
+
     epsilon = FLOAT(1.032e-2)
     sigma = FLOAT(3.405)
-    sigma3 = sigma * sigma * sigma
-    sigma6 = sigma3 * sigma3
-    sigma12 = sigma6 * sigma6
-    e24s6 = FLOAT(24.0) * epsilon * sigma6
-    e48s12 = FLOAT(48.0) * epsilon * sigma12
-    e4s6 = FLOAT(4.0) * epsilon * sigma6
-    e4s12 = FLOAT(4.0) * epsilon * sigma12
 
     box = particles.box
     force = particles.force
@@ -192,11 +178,9 @@ def compute_force(
     cutoff2 = params.cutoff_radius * params.cutoff_radius
     length = box[0, 0], box[1, 1], box[2, 2]
 
-    potential_energy[0] = FLOAT(0.0)
+    particles.force[:] = FLOAT(0.0)
+    potential[0] = FLOAT(0.0)
     virial[0] = FLOAT(0.0)
-    for ni in range(params.num_atoms):
-        fi = particles.force[ni]
-        fi[0] = fi[1] = fi[2] = FLOAT(0.0)
 
     for ni in range(params.num_atoms):
         for j in range(neighbors.num_neighbors_per_atom[ni]):
@@ -209,21 +193,52 @@ def compute_force(
                 r2 = dx * dx + dy * dy + dz * dz
                 if r2 > cutoff2:
                     continue
-                r2inv = FLOAT(1.0) / r2
-                r4inv = r2inv * r2inv
-                r6inv = r2inv * r4inv
-                r8inv = r4inv * r4inv
-                r12inv = r4inv * r8inv
-                r14inv = r6inv * r8inv
-                fij = e24s6 * r8inv - e48s12 * r14inv
-                force[ni, 0] += dx * fij
-                force[ni, 1] += dy * fij
-                force[ni, 2] += dz * fij
-                force[nj, 0] -= dx * fij
-                force[nj, 1] -= dy * fij
-                force[nj, 2] -= dz * fij
-                potential_energy[0] += e4s12 * r12inv - e4s6 * r6inv
-                virial[0] += dx * force[ni, 0] + dy * force[ni, 1] + dz * force[ni, 2] 
+
+                fij_x, fij_y, fij_z = compute_lj_pair_force(
+                    (epsilon, sigma), 
+                    (r2, (dx, dy, dz)), 
+                    potential, 
+                    virial,
+                )
+                force[ni, 0] += fij_x 
+                force[ni, 1] += fij_y 
+                force[ni, 2] += fij_z
+                force[nj, 0] -= fij_x
+                force[nj, 1] -= fij_y
+                force[nj, 2] -= fij_z
+
+
+@njit(inline="always")
+def compute_lj_pair_force(
+    ff_params: tuple, 
+    distances: tuple, 
+    potential: Array, 
+    virial: Array,
+) -> tuple: 
+    epsilon, sigma = ff_params
+    r2, (dx, dy, dz) = distances
+
+    sigma3 = sigma * sigma * sigma
+    sigma6 = sigma3 * sigma3
+    sigma12 = sigma6 * sigma6
+    e24s6 = FLOAT(24.0) * epsilon * sigma6
+    e48s12 = FLOAT(48.0) * epsilon * sigma12
+    e4s6 = FLOAT(4.0) * epsilon * sigma6
+    e4s12 = FLOAT(4.0) * epsilon * sigma12
+
+    r2inv = FLOAT(1.0) / r2
+    r4inv = r2inv * r2inv
+    r6inv = r2inv * r4inv
+    r8inv = r4inv * r4inv
+    r12inv = r4inv * r8inv
+    r14inv = r6inv * r8inv
+    fij = e24s6 * r8inv - e48s12 * r14inv
+    fij_x, fij_y, fij_z = dx * fij, dy * fij, dz * fij
+
+    potential[0] += e4s12 * r12inv - e4s6 * r6inv
+    virial[0] -= dx * fij_x + dy * fij_y  + dz * fij_z 
+
+    return (fij_x, fij_y, fij_z) 
 
 
 @njit
@@ -239,11 +254,7 @@ def update_neighbors(
     nc = cells.sizes
 
     # Cell list
-    for ic0 in range(nc[0]):
-        for ic1 in range(nc[1]):
-            for ic2 in range(nc[2]):
-                cells.num_atoms_per_cell[index3d((ic0, ic1, ic2), nc)] = 0
-
+    cells.num_atoms_per_cell[:] = 0
     for n in range(params.num_atoms):
         ic0 = math.floor(position[n, 0] * nc[0] / length[0])
         ic1 = math.floor(position[n, 1] * nc[1] / length[1])
@@ -253,9 +264,7 @@ def update_neighbors(
         cells.num_atoms_per_cell[idx] += 1
 
     # Neighbor list
-    for n in range(params.num_atoms):
-        neighbors.num_neighbors_per_atom[n] = 0
-
+    neighbors.num_neighbors_per_atom[:] = 0
     for ic0 in range(nc[0]):
         for ic1 in range(nc[1]):
             for ic2 in range(nc[2]):
@@ -481,6 +490,7 @@ def get_temperature(particles: Particles) -> FLOAT:
 
 
 def read_xyz(filename: str) -> tuple:
+    atoms, box = [], []
     with open(filename, "r") as f:
         while True:
             line = f.readline()
@@ -509,8 +519,8 @@ def main() -> None:
         cutoff_radius=9.0,  # Angstrom
         skin_radius=1.0,  # Angstrom
         thermostat_coupling_time= 10 * time_step,
-        barostat_coupling_time= 100 * time_step,
-        compressibility= 1.0e1,
+        barostat_coupling_time= 10 * time_step,
+        compressibility= 1.0,
         neighbor_max_atoms=500,
     )
     mass = np.array([ATOMIC_MASS[a[0]] for a in atoms])
@@ -528,7 +538,7 @@ def main() -> None:
     )
     print(f"Number of atoms: {params.num_atoms}")
     # print(f"Box matrix H:\n{particles.box.reshape(3, 3)}")
-    simulate(params, particles, steps=100_001)
+    simulate(params, particles, steps=1_001)
     print("Done.")
 
 
