@@ -2,3 +2,13 @@
 # pixi environments
 .pixi
 *.egg-info
+
+.git
+
+refs
+input.data
+
+
+log.lammps
+*.lammpstrj
+*.xyz

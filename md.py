@@ -1,13 +1,5 @@
-# Experimental linear-scaling molecular dynamics code implemented using
-# cell-list and neighbor-list methods.
-#
-# References:
-#  1. https://github.com/a-amouei/fmd
-#  2. https://github.com/brucefan1983/Molecular-Dynamics-Simulation
-#
-# Author:
-#   Hossein Ghorbanfekr
-#   January 2026
+# MD engine from scratch 
+#   Hossein Ghorbanfekr, May 2026
 #   https://github.com/hghcomphys
 
 import math
@@ -21,10 +13,12 @@ FLOAT = np.float64
 Array = NDArray[FLOAT]
 ORDER = "C"
 
-K_B = 8.617343e-5  # eV/K 
-femtosecond = 1.0 / 1.018051e1  
-bar = 1.0 / 1.602e6 
-grcm3 = 1.0 / 1.66054 
+K_B = 8.617343e-5   # eV/K
+K_e = 14.399645478  # eV/(e^2 * A)
+
+femtosecond = 1.0 / 1.018051e1
+bar = 1.0 / 1.602e6
+grcm3 = 1.0 / 1.66054
 
 
 class Parameters(NamedTuple):
@@ -45,6 +39,7 @@ class Particles(NamedTuple):
     position: Array
     velocity: Array
     force: Array
+    charge: Array
     box: Array
     position_old: Array
 
@@ -60,6 +55,42 @@ class NeighborList(NamedTuple):
     neighbor_index: NDArray
 
 
+def main() -> None:
+    ATOMIC_MASS = {"Ar": 39.948}  # amu
+    atoms, box = read_xyz("argon.xyz")
+    time_step = 1.0 * femtosecond
+    params = Parameters(
+        num_atoms=len(atoms),
+        time_step=time_step,
+        temperature=300.0,  # Kelvin
+        pressure=1.0 * bar,
+        cutoff_radius=9.0,  # Angstrom
+        skin_radius=1.0,  # Angstrom
+        thermostat_coupling_time=10 * time_step,
+        barostat_coupling_time=10 * time_step,
+        compressibility=1.0,
+        neighbor_max_atoms=500,
+    )
+    charge = np.zeros(len(atoms), dtype=FLOAT)
+    mass = np.array([ATOMIC_MASS[a[0]] for a in atoms], dtype=FLOAT)
+    position = np.array([a[1:4] for a in atoms], dtype=FLOAT, order=ORDER)
+    velocity = generate_velocity(mass, params.temperature)
+    force = np.empty((len(atoms), 3), dtype=FLOAT, order=ORDER)
+    box = np.array(box, dtype=FLOAT).reshape(3, 3)
+    particles = Particles(
+        mass=mass,
+        position=position,
+        velocity=velocity,
+        force=force,
+        charge=charge,
+        box=box,
+        position_old=position.copy(),
+    )
+    print(f"Number of atoms: {params.num_atoms}")
+    simulate(params, particles, steps=1_001)
+    print("Done.")
+
+
 def simulate(
     params: Parameters,
     particles: Particles,
@@ -73,7 +104,7 @@ def simulate(
 
     potential = np.empty(1, dtype=FLOAT)
     virial = np.empty(1, dtype=FLOAT)
-    compute_short_forces(particles, params, neighbors, potential, virial)
+    compute_short_range_forces(particles, params, neighbors, potential, virial)
     with open(filename, "w") as file:
         # Simulate
         print(
@@ -97,7 +128,7 @@ def simulate(
                 pe = potential[0]
                 temp = get_temperature(particles)
                 pres = get_pressure(particles, virial)
-                vol = np.linalg.det(particles.box) 
+                vol = np.linalg.det(particles.box)
                 dens = np.sum(particles.mass) / vol
                 print(
                     f"{step:<8}"
@@ -119,49 +150,25 @@ def simulate(
                 # cells = initialize_cells(params, particles.box)
                 update_neighbors(particles, params, cells, neighbors)
                 num_neighbor_updates += 1
-            compute_short_forces(particles, params, neighbors, potential, virial)
+            compute_forces(particles, params, neighbors, potential, virial)
             verlet_integration_velocity(particles, params)
             # thermostat(particles, params)
             # barostat(particles, params, virial)
 
-@njit
-def get_pressure(particles: Particles, virial: Array) -> float:
-    vol = np.linalg.det(particles.box) 
-    temp = get_temperature(particles)
-    natoms = particles.position.shape[0]
-    pres = (natoms * K_B * temp + virial[0] / 3.0 ) / vol
-    return pres
 
 @njit
-def barostat(particles: Particles, params: Parameters, virial: Array) -> None:
-
-    p = get_pressure(particles, virial)
-    p0 = params.pressure
-    dt = params.time_step
-    tau = params.barostat_coupling_time
-    beta = params.compressibility
-    pos = particles.position
-    box = particles.box
-
-    scale = (1.0 - beta * dt / tau * (p0 - p))**(1.0/3.0)
-    pos[:] *= scale
-    box[:] *= scale
-
-
-@njit 
-def thermostat(particles, params) -> None:
-    t = get_temperature(particles)
-    t0 = params.temperature
-    dt = params.time_step
-    tau = params.thermostat_coupling_time
-    v = particles.velocity
-
-    scale = FLOAT(math.sqrt(FLOAT(1.0) + (dt / tau) * (t0/t - FLOAT(1.0))))
-    v[:] *= scale
+def compute_forces(
+    particles: Particles,
+    params: Parameters,
+    neighbors: NeighborList,
+    potential: Array,
+    virial: Array,
+) -> None:
+    compute_short_range_forces(particles, params, neighbors, potential, virial)
 
 
 @njit
-def compute_short_forces(
+def compute_short_range_forces(
     particles: Particles,
     params: Parameters,
     neighbors: NeighborList,
@@ -171,10 +178,12 @@ def compute_short_forces(
 
     epsilon = FLOAT(1.032e-2)
     sigma = FLOAT(3.405)
+    alpha = 3.5 / params.cutoff_radius
 
     box = particles.box
     force = particles.force
     position = particles.position
+    charge = particles.charge
     cutoff2 = params.cutoff_radius * params.cutoff_radius
     length = box[0, 0], box[1, 1], box[2, 2]
 
@@ -194,29 +203,68 @@ def compute_short_forces(
                 if r2 > cutoff2:
                     continue
 
-                fij_x, fij_y, fij_z = compute_lj_pair_force(
-                    (epsilon, sigma), 
-                    (r2, (dx, dy, dz)), 
-                    potential, 
+                compute_short_lj_pair_force(
+                    (r2, (dx, dy, dz)),
+                    (epsilon, sigma),
+                    (force[ni], force[nj]),
+                    potential,
                     virial,
                 )
-                force[ni, 0] += fij_x 
-                force[ni, 1] += fij_y 
-                force[ni, 2] += fij_z
-                force[nj, 0] -= fij_x
-                force[nj, 1] -= fij_y
-                force[nj, 2] -= fij_z
+                compute_short_coul_pair_force(
+                    (r2, (dx, dy, dz)),
+                    (alpha, (charge[ni], charge[nj])),
+                    (force[ni], force[nj]),
+                    potential,
+                    virial,
+                )
 
 
 @njit(inline="always")
-def compute_lj_pair_force(
-    ff_params: tuple, 
-    distances: tuple, 
-    potential: Array, 
+def compute_short_coul_pair_force(
+    distances: tuple,
+    ff_params: tuple,
+    forces: tuple,
+    potential: Array,
     virial: Array,
-) -> tuple: 
-    epsilon, sigma = ff_params
+) -> None:
+
     r2, (dx, dy, dz) = distances
+    alpha, (qi, qj) = ff_params
+    force_i, force_j = forces
+
+    r = math.sqrt(r2)
+    inv_r = FLOAT(1.0) / r
+
+    erfc_term = math.erfc(alpha * r) * inv_r
+    coef_1 = K_e * qi * qj
+    coef_2 = FLOAT(2) * alpha / math.sqrt(math.pi)
+
+    fij = -coef_1 * (erfc_term + coef_2 * math.exp(-(alpha * r)**2)) * inv_r**2 
+    fij_x, fij_y, fij_z = fij * dx, fij * dy, fij * dz
+
+    force_i[0] += fij_x
+    force_i[1] += fij_y
+    force_i[2] += fij_z
+    force_j[0] -= fij_x
+    force_j[1] -= fij_y
+    force_j[2] -= fij_z
+    potential[0] += coef_1 * erfc_term
+    virial[0] += dx * fij_x + dy * fij_y + dz * fij_z
+
+
+
+@njit(inline="always")
+def compute_short_lj_pair_force(
+    distances: tuple,
+    ff_params: tuple,
+    forces: tuple,
+    potential: Array,
+    virial: Array,
+) -> None:
+
+    r2, (dx, dy, dz) = distances
+    epsilon, sigma = ff_params
+    force_i, force_j = forces
 
     sigma3 = sigma * sigma * sigma
     sigma6 = sigma3 * sigma3
@@ -233,12 +281,16 @@ def compute_lj_pair_force(
     r12inv = r4inv * r8inv
     r14inv = r6inv * r8inv
     fij = e24s6 * r8inv - e48s12 * r14inv
-    fij_x, fij_y, fij_z = dx * fij, dy * fij, dz * fij
+    fij_x, fij_y, fij_z = fij * dx, fij * dy, fij * dz
 
+    force_i[0] += fij_x
+    force_i[1] += fij_y
+    force_i[2] += fij_z
+    force_j[0] -= fij_x
+    force_j[1] -= fij_y
+    force_j[2] -= fij_z
     potential[0] += e4s12 * r12inv - e4s6 * r6inv
-    virial[0] -= dx * fij_x + dy * fij_y  + dz * fij_z 
-
-    return (fij_x, fij_y, fij_z) 
+    virial[0] += dx * fij_x + dy * fij_y + dz * fij_z
 
 
 @njit
@@ -329,6 +381,43 @@ def update_neighbors(
         particles.position_old[n, 2] = position[n, 2]
 
 
+@njit
+def get_pressure(particles: Particles, virial: Array) -> float:
+    vol = np.linalg.det(particles.box)
+    temp = get_temperature(particles)
+    natoms = particles.position.shape[0]
+    pres = (natoms * K_B * temp - virial[0] / 3.0) / vol
+    return pres
+
+
+@njit
+def barostat(particles: Particles, params: Parameters, virial: Array) -> None:
+
+    p = get_pressure(particles, virial)
+    p0 = params.pressure
+    dt = params.time_step
+    tau = params.barostat_coupling_time
+    beta = params.compressibility
+    pos = particles.position
+    box = particles.box
+
+    scale = (1.0 - beta * dt / tau * (p0 - p)) ** (1.0 / 3.0)
+    pos[:] *= scale
+    box[:] *= scale
+
+
+@njit
+def thermostat(particles, params) -> None:
+    t = get_temperature(particles)
+    t0 = params.temperature
+    dt = params.time_step
+    tau = params.thermostat_coupling_time
+    v = particles.velocity
+
+    scale = FLOAT(math.sqrt(FLOAT(1.0) + (dt / tau) * (t0 / t - FLOAT(1.0))))
+    v[:] *= scale
+
+
 def generate_velocity(
     mass: Array,
     temperature: float,
@@ -342,6 +431,7 @@ def generate_velocity(
     vcm = (mass.reshape(-1, 1) * velocity).sum(axis=0) / mass.sum()
     velocity -= vcm
     return velocity
+
 
 def initialize_cells(
     params: Parameters,
@@ -376,13 +466,14 @@ def initialize_cells(
         atom_index=cell_atom_index,
     )
     return cells
- 
+
+
 def initialize_neighbors(
     params: Parameters,
     box: Array,
 ) -> tuple[CellList, NeighborList]:
     # Cell list
-    cells = initialize_cells(params, box) 
+    cells = initialize_cells(params, box)
     # Neighbor list
     neighbor_index = np.empty(
         shape=(params.num_atoms, params.neighbor_max_atoms),
@@ -440,7 +531,8 @@ def verlet_integration_position(
     params: Parameters,
 ) -> None:
     dt = params.time_step
-    m, r, v, f, box, _ = particles
+    box = particles.box
+    m, r, v, f = particles.mass, particles.position, particles.velocity, particles.force
     length = box[0, 0], box[1, 1], box[2, 2]
     for n in range(params.num_atoms):
         for dim in range(3):
@@ -451,6 +543,7 @@ def verlet_integration_position(
                 length[dim],
             )
             v[n, dim] += FLOAT(0.5) * dt / m[n] * f[n, dim]
+
 
 @njit
 def verlet_integration_velocity(
@@ -505,41 +598,6 @@ def read_xyz(filename: str) -> tuple:
                 x, y, z = map(float, parts[1:4])
                 atoms.append((element, x, y, z))
     return atoms, box
-
-
-def main() -> None:
-    ATOMIC_MASS = {"Ar": 39.948}  # amu
-    atoms, box = read_xyz("argon.xyz")
-    time_step = 1.0 * femtosecond
-    params = Parameters(
-        num_atoms=len(atoms),
-        time_step=time_step,
-        temperature=300.0, # Kelvin
-        pressure=1.0 * bar, 
-        cutoff_radius=9.0,  # Angstrom
-        skin_radius=1.0,  # Angstrom
-        thermostat_coupling_time= 10 * time_step,
-        barostat_coupling_time= 10 * time_step,
-        compressibility= 1.0,
-        neighbor_max_atoms=500,
-    )
-    mass = np.array([ATOMIC_MASS[a[0]] for a in atoms])
-    position = np.array([a[1:4] for a in atoms], dtype=FLOAT, order=ORDER)
-    velocity = generate_velocity(mass, params.temperature)
-    force = np.empty((len(atoms), 3), dtype=FLOAT, order=ORDER)
-    box = np.array(box, dtype=FLOAT).reshape(3, 3)
-    particles = Particles(
-        mass=mass,
-        position=position,
-        velocity=velocity,
-        force=force,
-        box=box,
-        position_old=position.copy(),
-    )
-    print(f"Number of atoms: {params.num_atoms}")
-    # print(f"Box matrix H:\n{particles.box.reshape(3, 3)}")
-    simulate(params, particles, steps=1_001)
-    print("Done.")
 
 
 if __name__ == "__main__":
