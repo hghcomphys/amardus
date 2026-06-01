@@ -9,35 +9,11 @@ Todos:
 
 - [x] Linear MD
 - [x] NVT and NPT ensembles
-- [ ] Short-range interaction
-- [ ] Electrostatic long-range
-- [ ] Bonds
+- [x] Short-range interaction
+- [ ] Bonded interaction
+- [ ] Long-range electrostatic 
 - [ ] Support Amber FF
 - [ ] Machine-learning FF 
 - [ ] Free energy calculation
 - [ ] GPU implementation
-
----
-
-## Setup the environment
-
-```bash
-pixi install
-```
-
-## Generate structure
-
-```bash
-pixi run python generate_structure.py --lattice 6 6 6
-```
-
-## Run benchmark simulation 
-
-```bash
-pixi run lmp < in.lmp
-
-```
-
-
-
 

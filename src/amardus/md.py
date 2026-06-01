@@ -3,11 +3,10 @@
 # https://github.com/hghcomphys
 
 import math
-from typing import NamedTuple, TextIO
-
 import numpy as np
 from numba import njit
 from numpy.typing import NDArray
+from typing import NamedTuple, TextIO
 
 FLOAT = np.float64
 Array = NDArray[FLOAT]
@@ -54,49 +53,6 @@ class CellList(NamedTuple):
 class NeighborList(NamedTuple):
     num_neighbors_per_atom: NDArray
     neighbor_index: NDArray
-
-
-def main() -> None:
-
-    ATOMIC_MASS = {"Ar": 39.948}  # amu
-    atoms, box = read_structure("argon.xyz")
-    num_atoms=len(atoms),
-    time_step = 1.0 * femtosecond
-    cutoff = 9.0 
-
-    params = Parameters(
-        time_step=time_step,
-        temperature=300.0,  # Kelvin
-        pressure=1.0 * bar,
-        cutoff_radius=cutoff,  # Angstrom
-        skin_radius=1.0,  # Angstrom
-        thermostat_coupling_time=10 * time_step,
-        barostat_coupling_time=10 * time_step,
-        compressibility=1.0,
-        neighbor_max_atoms=300,
-        ewald_alpha= 3.5 / cutoff,
-        ewald_kmax=2,
-    )
-
-    charge = np.zeros(len(atoms), dtype=FLOAT)
-    mass = np.array([ATOMIC_MASS[a[0]] for a in atoms], dtype=FLOAT)
-    position = np.array([a[1:4] for a in atoms], dtype=FLOAT, order=ORDER)
-    velocity = generate_velocity(mass, params.temperature)
-    force = np.empty((len(atoms), 3), dtype=FLOAT, order=ORDER)
-    box = np.array(box, dtype=FLOAT).reshape(3, 3)
-    particles = Particles(
-        mass=mass,
-        position=position,
-        velocity=velocity,
-        force=force,
-        charge=charge,
-        box=box,
-        position_old=position.copy(),
-    )
-
-    print(f"Number of atoms: {num_atoms}")
-    simulate(params, particles, steps=1_001)
-    print("Done.")
 
 
 def simulate(
@@ -184,7 +140,7 @@ def compute_forces(
     virial[0] = FLOAT(0.0)
 
     compute_lj_forces(particles, params, neighbors, energy, virial)
-    compute_coul_forces(particles, params, neighbors, energy, virial)
+    # compute_coul_forces(particles, params, neighbors, energy, virial)
 
 
 @njit
@@ -536,7 +492,7 @@ def generate_velocity(
 def initialize_cells(
     params: Parameters,
     box: Array,
-    num_atoms: float,
+    num_atoms: int,
 ) -> CellList:
 
     cell_length = params.cutoff_radius
@@ -574,7 +530,7 @@ def initialize_cells(
 def initialize_neighbors(
     params: Parameters,
     box: Array,
-    num_atoms: float,
+    num_atoms: int,
 ) -> tuple[CellList, NeighborList]:
     # Cell list
     cells = initialize_cells(params, box, num_atoms)
@@ -690,24 +646,3 @@ def get_temperature(particles: Particles) -> FLOAT:
     natoms = len(particles.velocity)
     return FLOAT(2.0) / (FLOAT(3) * natoms * K_B) * get_kinetic_energy(particles)
 
-
-def read_structure(filename: str) -> tuple: # .xyz
-    atoms, box = [], []
-    with open(filename, "r") as f:
-        while True:
-            line = f.readline()
-            if not line:
-                break
-            num_atoms = int(line.strip())
-            box = [float(b) for b in f.readline().strip().split()]
-            atoms = []
-            for _ in range(num_atoms):
-                parts = f.readline().split()
-                element = parts[0]
-                x, y, z = map(float, parts[1:4])
-                atoms.append((element, x, y, z))
-    return atoms, box
-
-
-if __name__ == "__main__":
-    main()
