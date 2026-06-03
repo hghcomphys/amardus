@@ -31,21 +31,19 @@ def main():
         type=int,
         nargs=3,
         default=(10, 10, 10),
-        help="Lattice dimensions to repeat (default: 10 10 10)"
+        help="Lattice dimensions to repeat (default: 10 10 10)",
     )
     parser.add_argument(
         "--system",
         default="lj",
         choices=["lj"],
-        help="System to generate (default: lj)"
+        help="System to generate (default: lj)",
     )
     args = parser.parse_args()
 
     if args.system == "lj":
         build_lj(args.lattice)
-    
-    
+
+
 if __name__ == "__main__":
     main()
-
-

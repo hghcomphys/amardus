@@ -229,7 +229,7 @@ def get_angular(
 def read_structure(
     file: str,
     element_map: dict[str, int],
-    ) -> tuple:
+) -> tuple:
     types = []
     lattice = []
     positions = []
