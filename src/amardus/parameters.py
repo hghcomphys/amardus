@@ -1,3 +1,5 @@
+from math import e
+
 import numpy as np
 from numpy.typing import NDArray
 from typing import Literal, NamedTuple, TypeAlias
@@ -7,9 +9,9 @@ Array: TypeAlias = NDArray[FLOAT]
 ORDER: Literal["C", "F"] = "C"
 
 
-class Unit(NamedTuple):
-    K_B = 8.617343e-5  # eV/K
-    K_E = 14.399645478  # eV/(e^2 * A)
+class Unit(NamedTuple):  
+    boltzman = 8.617343e-5   # eV/K
+    coulomb = 14.399645478   # eV/(e^2 * A)
     femtoseconds: float = 1.0 / 1.018051e1
     picoseconds: float = 1.0e3 / 1.018051e1
     bar: float = 1.0 / 1.602e6
@@ -18,7 +20,7 @@ class Unit(NamedTuple):
     electronvolt: float = 1.0
     angstrom: float = 1.0
 
-
+   
 class Parameters(NamedTuple):
     time_step: float
     temperature: float
@@ -31,4 +33,5 @@ class Parameters(NamedTuple):
     neighbor_max_atoms: int
     ewald_alpha: float
     ewald_kmax: int
-    unit: Unit
+    boltzman: float
+    coulomb: float

@@ -110,6 +110,7 @@ def compute_ewald_real_forces(
     length = box[0, 0], box[1, 1], box[2, 2]
     alpha = params.ewald_alpha
     num_atoms = len(position)
+    K_E = params.coulomb
 
     for ni in range(num_atoms):
         for j in range(neighbors.num_neighbors_per_atom[ni]):
