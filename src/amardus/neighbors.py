@@ -3,7 +3,7 @@ import numpy as np
 from typing import NamedTuple
 from numpy.typing import NDArray
 from numba import njit
-from amardus.particles import Particles
+from amardus.atoms import Atoms
 from amardus.parameters import Parameters, Array, FLOAT
 
 
@@ -103,14 +103,14 @@ def initialize_cells(
 
 @njit
 def update_neighbors(
-    particles: Particles,
+    atoms: Atoms,
     params: Parameters,
     cells: CellList,
     neighbors: NeighborList,
 ) -> None:
 
     neighbor_cutoff2 = (params.cutoff_radius + params.skin_radius) ** 2
-    box, position = particles.box, particles.position
+    box, position = atoms.box, atoms.position
     length = box[0, 0], box[1, 1], box[2, 2]
     num_atoms = len(position)
     nc = cells.sizes
@@ -186,19 +186,19 @@ def update_neighbors(
 
     # Update old position
     for n in range(num_atoms):
-        particles.position_old[n, 0] = position[n, 0]
-        particles.position_old[n, 1] = position[n, 1]
-        particles.position_old[n, 2] = position[n, 2]
+        atoms.position_old[n, 0] = position[n, 0]
+        atoms.position_old[n, 1] = position[n, 1]
+        atoms.position_old[n, 2] = position[n, 2]
 
 
 @njit
-def check_if_neighbor_need_update(particles: Particles, params: Parameters):
-    num_atoms = len(particles.position)
+def check_if_neighbor_need_update(atoms: Atoms, params: Parameters):
+    num_atoms = len(atoms.position)
     displacement_cutoff2 = 0.25 * params.skin_radius * params.skin_radius
     r2 = FLOAT(0.0)
     for n in range(num_atoms):
         for dim in range(3):
-            dx = particles.position[n, dim] - particles.position_old[n, dim]
+            dx = atoms.position[n, dim] - atoms.position_old[n, dim]
             r2 += dx * dx
         if r2 > displacement_cutoff2:
             return True

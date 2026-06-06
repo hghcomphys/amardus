@@ -5,7 +5,7 @@ from amardus.neighbors import (
     update_neighbors,
     check_if_neighbor_need_update,
 )
-from amardus.particles import Particles
+from amardus.atoms import Atoms
 from amardus.forces import compute_forces
 from amardus.integrator import verlet_integration_velocity, verlet_integration_position
 from amardus.io import StateReporter
@@ -13,36 +13,36 @@ from amardus.io import StateReporter
 
 def simulate(
     params: Parameters,
-    particles: Particles,
+    atoms: Atoms,
     reporter: StateReporter, 
     steps: int = 1,
 ) -> None:
-    box = particles.box
-    num_atoms = len(particles.position)
+    box = atoms.box
+    num_atoms = len(atoms.position)
 
     cells, neighbors = initialize_neighbors(params, box, num_atoms)
-    update_neighbors(particles, params, cells, neighbors)
+    update_neighbors(atoms, params, cells, neighbors)
 
     energy = np.empty(1, dtype=FLOAT)
     virial = np.empty(1, dtype=FLOAT)
-    compute_forces(particles, params, neighbors, energy, virial)
+    compute_forces(atoms, params, neighbors, energy, virial)
 
     num_neighbor_updates = 1
     for step in range(steps):
 
-       reporter.gather(step, energy, virial, particles, params)
-       # save_structure(particles, file)
+       reporter.gather(step, energy, virial, atoms, params)
+       # save_structure(atoms, file)
 
        # Next time step (update r, v, and F)
-       verlet_integration_position(particles, params)
+       verlet_integration_position(atoms, params)
 
-       if check_if_neighbor_need_update(particles, params):
-           # cells = initialize_cells(params, particles.box)
-           update_neighbors(particles, params, cells, neighbors)
+       if check_if_neighbor_need_update(atoms, params):
+           # cells = initialize_cells(params, atoms.box)
+           update_neighbors(atoms, params, cells, neighbors)
            num_neighbor_updates += 1
 
-       compute_forces(particles, params, neighbors, energy, virial)
-       verlet_integration_velocity(particles, params)
+       compute_forces(atoms, params, neighbors, energy, virial)
+       verlet_integration_velocity(atoms, params)
 
-        # thermostat(particles, params)
-        # barostat(particles, params, virial)
+        # thermostat(atoms, params)
+        # barostat(atoms, params, virial)

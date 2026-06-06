@@ -1,26 +1,24 @@
-from amardus.parameters import FLOAT, ORDER
+from amardus.io import StateReporter
 from amardus import (
     Unit,
     Parameters,
-    Particles,
+    Atoms,
     simulate,
-    generate_velocity,
 )
-from ase.io import read
+from ase.io import read as ase_read
+from ase import Atoms as AseAtoms
+from ase.md.velocitydistribution import (
+    MaxwellBoltzmannDistribution,
+    Stationary,
+)
 import numpy as np
-
-from amardus.io import StateReporter
 
 
 def run_simulation() -> None:
 
-    ase_atoms = read("argon.xyz")
-    num_atoms = len(ase_atoms)
-
     unit = Unit()
     time_step = 1.0 * unit.femtoseconds
     cutoff = 9.0 * unit.angstrom
-    reporter = StateReporter(interval=100, unit=unit)
 
     params = Parameters(
         time_step=time_step,
@@ -38,25 +36,20 @@ def run_simulation() -> None:
         coulomb=unit.coulomb,
     )
 
-    charge = ase_atoms.get_initial_charges()
-    mass = ase_atoms.get_masses()
-    position = np.asarray(ase_atoms.get_positions(), dtype=FLOAT, order=ORDER)
-    velocity = generate_velocity(mass, params.temperature, params.boltzman)
-    force = np.empty((num_atoms, 3), dtype=FLOAT, order=ORDER)
-    box = np.array(ase_atoms.cell.array, dtype=FLOAT)
-    particles = Particles(
-        mass=mass,
-        position=position,
-        velocity=velocity,
-        force=force,
-        charge=charge,
-        box=box,
-        position_old=position.copy(),
+    ase_atoms: AseAtoms = ase_read("argon.xyz")
+    MaxwellBoltzmannDistribution(
+        ase_atoms,
+        temperature_K=params.temperature,
+        rng=np.random.default_rng(1234),
     )
+    Stationary(ase_atoms)
+
+    atoms = Atoms.from_ase(ase_atoms)
+    reporter = StateReporter(interval=100, unit=unit)
 
     print("MD simulation of Lennard-Jones particles.")
-    print(f"Number of atoms: {num_atoms}")
-    simulate(params, particles, steps=1_001, reporter=reporter)
+    print(f"Number of atoms: {len(atoms)}")
+    simulate(params, atoms, steps=1_001, reporter=reporter)
     print("Done.")
 
 

@@ -1,19 +1,19 @@
 import math
 import numpy as np
 from numba import njit
-from amardus.particles import Particles, get_pressure, get_temperature
+from amardus.atoms import Atoms, get_pressure, get_temperature
 from amardus.parameters import Parameters, Array, FLOAT
 
 
 @njit
 def verlet_integration_position(
-    particles: Particles,
+    atoms: Atoms,
     params: Parameters,
 ) -> None:
     dt = params.time_step
-    box = particles.box
-    num_atoms = len(particles.position)
-    m, r, v, f = particles.mass, particles.position, particles.velocity, particles.force
+    box = atoms.box
+    num_atoms = len(atoms.position)
+    m, r, v, f = atoms.mass, atoms.position, atoms.velocity, atoms.force
     length = box[0, 0], box[1, 1], box[2, 2]
 
     for n in range(num_atoms):
@@ -29,12 +29,12 @@ def verlet_integration_position(
 
 @njit
 def verlet_integration_velocity(
-    particles: Particles,
+    atoms: Atoms,
     params: Parameters,
 ) -> None:
     dt = params.time_step
-    num_atoms = len(particles.position)
-    m, v, f = particles.mass, particles.velocity, particles.force
+    num_atoms = len(atoms.position)
+    m, v, f = atoms.mass, atoms.velocity, atoms.force
 
     for n in range(num_atoms):
         for dim in range(3):
@@ -42,15 +42,15 @@ def verlet_integration_velocity(
 
 
 @njit
-def barostat(particles: Particles, params: Parameters, virial: Array) -> None:
+def barostat(atoms: Atoms, params: Parameters, virial: Array) -> None:
 
-    p = get_pressure(particles, virial)
+    p = get_pressure(atoms, virial)
     p0 = params.pressure
     dt = params.time_step
     tau = params.barostat_coupling_time
     beta = params.compressibility
-    pos = particles.position
-    box = particles.box
+    pos = atoms.position
+    box = atoms.box
 
     scale = (1.0 - beta * dt / tau * (p0 - p)) ** (1.0 / 3.0)
     pos[:] *= scale
@@ -58,12 +58,12 @@ def barostat(particles: Particles, params: Parameters, virial: Array) -> None:
 
 
 @njit
-def thermostat(particles, params) -> None:
-    t = get_temperature(particles)
+def thermostat(atoms, params) -> None:
+    t = get_temperature(atoms)
     t0 = params.temperature
     dt = params.time_step
     tau = params.thermostat_coupling_time
-    v = particles.velocity
+    v = atoms.velocity
 
     scale = FLOAT(math.sqrt(FLOAT(1.0) + (dt / tau) * (t0 / t - FLOAT(1.0))))
     v[:] *= scale

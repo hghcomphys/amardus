@@ -1,10 +1,12 @@
+from __future__ import annotations
 import numpy as np
 from numba import njit
 from typing import NamedTuple
 from amardus.parameters import Array, FLOAT, ORDER
+from ase import Atoms as AseAtoms
 
 
-class Particles(NamedTuple):
+class Atoms(NamedTuple):
     mass: Array
     position: Array
     velocity: Array
@@ -13,9 +15,30 @@ class Particles(NamedTuple):
     box: Array
     position_old: Array
 
+    @classmethod
+    def from_ase(cls, atoms: AseAtoms) -> Atoms:
+        charge = atoms.get_initial_charges()
+        mass = atoms.get_masses()
+        position = np.asarray(atoms.get_positions(), dtype=FLOAT, order=ORDER)
+        velocity = np.asarray(atoms.get_velocities(), dtype=FLOAT, order=ORDER)
+        force = np.empty(position.shape, dtype=FLOAT, order=ORDER)
+        box = np.array(atoms.cell.array, dtype=FLOAT)
+        return cls(
+            mass=mass,
+            position=position,
+            velocity=velocity,
+            force=force,
+            charge=charge,
+            box=box,
+            position_old=position.copy(),
+        )
 
+    def __len__(self):
+        return len(self.position)
+
+   
 @njit
-def get_pressure(particles: Particles, virial: Array, K_B: float) -> float:
+def get_pressure(particles: Atoms, virial: Array, K_B: float) -> float:
     vol = np.linalg.det(particles.box)
     temp = get_temperature(particles, K_B)
     natoms = particles.position.shape[0]
@@ -40,7 +63,7 @@ def generate_velocity(
 
 
 @njit
-def get_kinetic_energy(particles: Particles) -> FLOAT:
+def get_kinetic_energy(particles: Atoms) -> FLOAT:
     natoms = len(particles.velocity)
     m, v = particles.mass, particles.velocity
     ke = FLOAT(0.0)
@@ -50,6 +73,6 @@ def get_kinetic_energy(particles: Particles) -> FLOAT:
 
 
 @njit
-def get_temperature(particles: Particles, K_B: float) -> FLOAT:
+def get_temperature(particles: Atoms, K_B: float) -> FLOAT:
     natoms = len(particles.velocity)
     return FLOAT(2.0) / (FLOAT(3) * natoms * K_B) * get_kinetic_energy(particles)

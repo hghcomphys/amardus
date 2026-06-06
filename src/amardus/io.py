@@ -2,8 +2,8 @@ import math
 import numpy as np
 from amardus.parameters import Unit, Parameters, Array
 from typing import TextIO
-from amardus.particles import (
-    Particles,
+from amardus.atoms import (
+    Atoms,
     get_kinetic_energy,
     get_temperature,
     get_pressure,
@@ -42,7 +42,7 @@ class StateReporter:
         step: int,
         energy: Array,
         virial: Array,
-        particles: Particles, 
+        atoms: Atoms, 
         params: Parameters,
     ) -> None:
 
@@ -53,12 +53,12 @@ class StateReporter:
         if step % self.interval == 0:
 
             unit = self.unit
-            ke = get_kinetic_energy(particles)
+            ke = get_kinetic_energy(atoms)
             pe = energy[0]
-            temp = get_temperature(particles, params.boltzman)
-            pres = get_pressure(particles, virial, params.boltzman)
-            vol = np.linalg.det(particles.box)
-            dens = np.sum(particles.mass) / vol
+            temp = get_temperature(atoms, params.boltzman)
+            pres = get_pressure(atoms, virial, params.boltzman)
+            vol = np.linalg.det(atoms.box)
+            dens = np.sum(atoms.mass) / vol
 
             print(
                 f"{step:<8}"
@@ -75,8 +75,8 @@ class StateReporter:
             )
  
 
-def save_structure(particles: Particles, file: TextIO) -> None:
-    position = particles.position
+def save_structure(atoms: Atoms, file: TextIO) -> None:
+    position = atoms.position
     natoms = position.shape[0]
     file.write(f"{natoms}\n\n")
     for i in range(natoms):

@@ -1,14 +1,14 @@
 import math
 import numpy as np
 from numba import njit
-from amardus.particles import Particles
+from amardus.atoms import Atoms
 from amardus.neighbors import NeighborList, apply_pbc
 from amardus.parameters import Parameters, Array, FLOAT
 
 
 @njit
 def compute_forces(
-    particles: Particles,
+    particles: Atoms,
     params: Parameters,
     neighbors: NeighborList,
     energy: Array,
@@ -25,7 +25,7 @@ def compute_forces(
 
 @njit
 def compute_coul_forces(
-    particles: Particles,
+    particles: Atoms,
     params: Parameters,
     neighbors: NeighborList,
     energy: Array,
@@ -38,7 +38,7 @@ def compute_coul_forces(
 
 @njit
 def compute_lj_forces(
-    particles: Particles,
+    particles: Atoms,
     params: Parameters,
     neighbors: NeighborList,
     energy: Array,
@@ -95,7 +95,7 @@ def compute_lj_forces(
 
 @njit
 def compute_ewald_real_forces(
-    particles: Particles,
+    particles: Atoms,
     params: Parameters,
     neighbors: NeighborList,
     energy: Array,
@@ -150,7 +150,7 @@ def compute_ewald_real_forces(
 
 @njit
 def compute_ewald_reciprocal_forces(
-    particles: Particles,
+    particles: Atoms,
     params: Parameters,
     energy: Array,
     virial: Array,
@@ -219,7 +219,7 @@ def compute_ewald_reciprocal_forces(
 
 @njit
 def compute_ewald_self_energy(
-    particles: Particles,
+    particles: Atoms,
     params: Parameters,
     energy: Array,
 ) -> None:
