@@ -46,38 +46,34 @@ class StateReporter(ReporterInteface):
         current_step: int,
     ) -> None:
 
-        atoms = sys.atoms
-        energy = sys.energy
-        cells = sys.cells
-        neighbors = sys.neighbors
-
         if self.show_header:
             print(self.header)
             self.show_header = False
 
-        if current_step % self.interval == 0:
+        if current_step % self.interval != 0:
+            return
 
-            unit = self.unit
-            ke = get_kinetic_energy(sys)
-            pe = energy[0]
-            temp = get_temperature(sys)
-            pres = get_pressure(sys)
-            vol = np.linalg.det(atoms.box)
-            dens = np.sum(atoms.mass) / vol
+        unit = self.unit
+        ke = get_kinetic_energy(sys)
+        pe = sys.energy[0]
+        temp = get_temperature(sys)
+        pres = get_pressure(sys)
+        vol = np.linalg.det(sys.atoms.box)
+        dens = np.sum(sys.atoms.mass) / vol
 
-            print(
-                f"{current_step:<8}"
-                f" {temp / unit.kelvin:<10.4f}"
-                f" {pres / unit.bar:<10.4f}"
-                f" {pe / unit.electronvolt:<10.4f}"
-                f" {ke / unit.electronvolt:<10.4f}"
-                f" {(ke + pe) / unit.electronvolt:<10.4f}"
-                # f" {num_neighbor_updates:<10}"
-                f" {neighbors.num_neighbors_per_atom.mean():<10.2f}"
-                f" {cells.num_atoms_per_cell.mean():<10.2f}"
-                f" {math.pow(vol, 1/3):<10.4f}"
-                f" {dens / unit.grcm3:<10.6f}"
-            )
+        print(
+            f"{current_step:<8}"
+            f" {temp / unit.kelvin:<10.4f}"
+            f" {pres / unit.bar:<10.4f}"
+            f" {pe / unit.electronvolt:<10.4f}"
+            f" {ke / unit.electronvolt:<10.4f}"
+            f" {(ke + pe) / unit.electronvolt:<10.4f}"
+            # f" {num_neighbor_updates:<10}"
+            f" {sys.neighbors.num_neighbors_per_atom.mean():<10.2f}"
+            f" {sys.cells.num_atoms_per_cell.mean():<10.2f}"
+            f" {math.pow(vol, 1/3):<10.4f}"
+            f" {dens / unit.grcm3:<10.6f}"
+        )
 
 
 def save_structure(atoms: Atoms, file: TextIO) -> None:

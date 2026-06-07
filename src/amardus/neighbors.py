@@ -1,12 +1,11 @@
 from __future__ import annotations
 import math
 import numpy as np
-from typing import NamedTuple
+from typing import NamedTuple, Protocol
 from numpy.typing import NDArray
 from numba import njit
 from amardus.atoms import Atoms
 from amardus.parameters import Parameters, Array, FLOAT
-from typing import Protocol
 
 
 class CellList(NamedTuple):
@@ -15,7 +14,7 @@ class CellList(NamedTuple):
     sizes: tuple[int, int, int]
 
     @classmethod
-    def build(
+    def create(
         cls,
         params: Parameters,
         box: Array,
@@ -58,7 +57,7 @@ class NeighborList(NamedTuple):
     neighbor_index: NDArray
 
     @classmethod
-    def build(
+    def create(
         cls,
         params: Parameters,
         num_atoms: int,
@@ -96,10 +95,18 @@ def apply_pbc(
 
 
 class SystemInterface(Protocol):
-    atoms: Atoms
-    params: Parameters
-    cells: CellList
-    neighbors: NeighborList
+
+    @property
+    def atoms(self) -> Atoms: ...
+
+    @property
+    def params(self) -> Parameters: ...
+
+    @property
+    def cells(self) -> CellList: ...
+    
+    @property
+    def neighbors(self) -> NeighborList: ...
 
 
 @njit
@@ -193,7 +200,7 @@ def update_neighbors(sys: SystemInterface) -> None:
 def check_if_neighbor_need_update(sys: SystemInterface):
     atoms, params = sys.atoms, sys.params
     num_atoms = len(atoms.position)
-    displacement_cutoff2 = 0.25 * params.skin_radius * params.skin_radius
+    displacement_cutoff2 = 0.25 * params.skin_radius **2
     r2 = FLOAT(0.0)
     for n in range(num_atoms):
         for dim in range(3):

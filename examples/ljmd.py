@@ -3,7 +3,8 @@ from amardus import (
     Unit,
     Parameters,
     Atoms,
-    simulate,
+    MDSystem,
+    MDSimulation,
 )
 from ase.io import read as read_ase
 from ase import Atoms as AseAtoms
@@ -46,12 +47,17 @@ def run_simulation() -> None:
     Stationary(atoms_ase)
     atoms = Atoms.from_ase(atoms_ase)
 
-    system = MDSystem.build(atoms, params)
+    system = MDSystem.create(atoms, params)
     reporter = StateReporter(interval=100, unit=unit)
+    simulation = MDSimulation(
+        system, 
+        reporters=[reporter],
+    )
 
     print("MD simulation of Lennard-Jones particles.")
     print(f"Number of atoms: {len(atoms)}")
-    simulate(system, steps=1_001, reporters=[reporter])
+    simulation.step(1_001)
+    # simulation.step(1_001)
     print("Done.")
 
 

@@ -16,42 +16,37 @@ class MDSystem(NamedTuple):
     virial: Array
 
     @classmethod
-    def build(cls, atoms: Atoms, params: Parameters) -> MDSystem:
+    def create(cls, atoms: Atoms, params: Parameters) -> MDSystem:
         num_atoms = len(atoms.position)
 
         return cls(
             atoms=atoms, 
             params=params, 
-            cells=CellList.build(params, atoms.box, num_atoms), 
-            neighbors=NeighborList.build(params, num_atoms), 
+            cells=CellList.create(params, atoms.box, num_atoms), 
+            neighbors=NeighborList.create(params, num_atoms), 
             energy = np.empty(1, dtype=FLOAT),
             virial = np.empty(1, dtype=FLOAT),
         )
 
 
-# @njit
+@njit
 def get_kinetic_energy(sys: MDSystem) -> FLOAT:
-    v = sys.atoms.velocity
-    m = sys.atoms.mass.reshape(-1, 1)
+    m, v = sys.atoms.mass.reshape(-1, 1), sys.atoms.velocity
     return FLOAT(0.5) * np.sum(m * v * v)
 
 
-# @njit
+@njit
 def get_temperature(sys: MDSystem) -> FLOAT:
-    natoms = len(sys.atoms)
+    m, v = sys.atoms.mass.reshape(-1, 1), sys.atoms.velocity
     KB = sys.params.boltzman
-    return FLOAT(2.0) / (FLOAT(3) * natoms * KB) * get_kinetic_energy(sys)
+    return np.mean(m * v * v) / KB
 
 
-# @njit
+@njit
 def get_pressure(sys: MDSystem) -> float:
-    atoms = sys.atoms
+    m, v = sys.atoms.mass.reshape(-1, 1), sys.atoms.velocity
+    vol = np.linalg.det(sys.atoms.box)
     virial = sys.virial
-    vol = np.linalg.det(atoms.box)
-    natoms = len(atoms)
-    KB = sys.params.boltzman
-    temp = get_temperature(sys)
-    pres = (natoms * KB * temp - virial[0] / FLOAT(3.0)) / vol
-    return pres
+    return (np.sum(m * v * v) - virial[0]) / (FLOAT(3.0) * vol)
 
 
