@@ -1,49 +1,41 @@
 import math
 import numpy as np
 from numba import njit
-from amardus.atoms import Atoms
-from amardus.neighbors import NeighborList, apply_pbc
-from amardus.parameters import Parameters, Array, FLOAT
+from amardus.system import MDSystem
+from amardus.neighbors import apply_pbc
+from amardus.parameters import FLOAT
 
 
 @njit
-def compute_forces(
-    particles: Atoms,
-    params: Parameters,
-    neighbors: NeighborList,
-    energy: Array,
-    virial: Array,
-) -> None:
+def compute_forces(sys: MDSystem) -> None:
+    sys.atoms.force[:] = FLOAT(0.0)
+    sys.energy[0] = FLOAT(0.0)
+    sys.virial[0] = FLOAT(0.0)
 
-    particles.force[:] = FLOAT(0.0)
-    energy[0] = FLOAT(0.0)
-    virial[0] = FLOAT(0.0)
-
-    compute_lj_forces(particles, params, neighbors, energy, virial)
-    # compute_coul_forces(particles, params, neighbors, energy, virial)
+    compute_lj_forces(sys)
+    # compute_coul_forces(sys)
 
 
 @njit
 def compute_coul_forces(
-    particles: Atoms,
-    params: Parameters,
-    neighbors: NeighborList,
-    energy: Array,
-    virial: Array,
+    sys: MDSystem
 ) -> None:
-    compute_ewald_real_forces(particles, params, neighbors, energy, virial)
-    compute_ewald_reciprocal_forces(particles, params, energy, virial)
-    compute_ewald_self_energy(particles, params, energy)
+    compute_ewald_real_forces(sys)
+    compute_ewald_reciprocal_forces(sys)
+    compute_ewald_self_energy(sys)
 
 
 @njit
-def compute_lj_forces(
-    particles: Atoms,
-    params: Parameters,
-    neighbors: NeighborList,
-    energy: Array,
-    virial: Array,
-) -> None:
+def compute_lj_forces(sys: MDSystem) -> None:
+    box = sys.atoms.box
+    energy = sys.energy
+    virial = sys.virial
+    neighbors = sys.neighbors
+    force = sys.atoms.force
+    position = sys.atoms.position
+    cutoff2 = sys.params.cutoff_radius**2
+    length = box[0, 0], box[1, 1], box[2, 2]
+    num_atoms = len(position)
 
     epsilon = FLOAT(1.032e-2)
     sigma = FLOAT(3.405)
@@ -55,12 +47,6 @@ def compute_lj_forces(
     e4s6 = FLOAT(4.0) * epsilon * sigma6
     e4s12 = FLOAT(4.0) * epsilon * sigma12
 
-    box = particles.box
-    force = particles.force
-    position = particles.position
-    cutoff2 = params.cutoff_radius * params.cutoff_radius
-    length = box[0, 0], box[1, 1], box[2, 2]
-    num_atoms = len(position)
 
     for ni in range(num_atoms):
         for j in range(neighbors.num_neighbors_per_atom[ni]):
@@ -94,23 +80,20 @@ def compute_lj_forces(
 
 
 @njit
-def compute_ewald_real_forces(
-    particles: Atoms,
-    params: Parameters,
-    neighbors: NeighborList,
-    energy: Array,
-    virial: Array,
-) -> None:
-
-    box = particles.box
-    force = particles.force
-    position = particles.position
-    charge = particles.charge
-    cutoff2 = params.cutoff_radius * params.cutoff_radius
+def compute_ewald_real_forces(sys: MDSystem) -> None:
+    atoms = sys.atoms
+    params = sys.params
+    neighbors = sys.neighbors
+    energy, virial = sys.energy, sys.virial
+    box = atoms.box
+    force = atoms.force
+    position = atoms.position
+    charge = atoms.charge
+    cutoff2 = params.cutoff_radius **2
     length = box[0, 0], box[1, 1], box[2, 2]
     alpha = params.ewald_alpha
     num_atoms = len(position)
-    K_E = params.coulomb
+    KE = params.coulomb
 
     for ni in range(num_atoms):
         for j in range(neighbors.num_neighbors_per_atom[ni]):
@@ -128,7 +111,7 @@ def compute_ewald_real_forces(
                 r_inv = FLOAT(1.0) / r
 
                 erfc_term = math.erfc(alpha * r) * r_inv
-                coef_1 = K_E * charge[ni] * charge[nj]
+                coef_1 = KE * charge[ni] * charge[nj]
                 coef_2 = FLOAT(2) * alpha / math.sqrt(math.pi)
 
                 fij = (
@@ -150,16 +133,15 @@ def compute_ewald_real_forces(
 
 @njit
 def compute_ewald_reciprocal_forces(
-    particles: Atoms,
-    params: Parameters,
-    energy: Array,
-    virial: Array,
+    sys: MDSystem
 ) -> None:
 
-    position = particles.position
-    charge = particles.charge
-    force = particles.force
-    box = particles.box
+    atoms, params = sys.atoms, sys.params
+    energy = sys.energy
+    position = atoms.position
+    charge = atoms.charge
+    force = atoms.force
+    box = atoms.box
     vol = np.linalg.det(box)
     length = box[0, 0], box[1, 1], box[2, 2]
     kmax = params.ewald_kmax
@@ -219,10 +201,11 @@ def compute_ewald_reciprocal_forces(
 
 @njit
 def compute_ewald_self_energy(
-    particles: Atoms,
-    params: Parameters,
-    energy: Array,
+    sys: MDSystem
 ) -> None:
-    charge = particles.charge
+    atoms, params = sys.atoms, sys.params
+    energy = sys.energy
+    charge = atoms.charge
     alpha = params.ewald_alpha
     energy[0] += -alpha / math.sqrt(math.pi) * np.sum(charge**2)
+

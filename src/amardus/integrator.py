@@ -1,15 +1,13 @@
 import math
 import numpy as np
 from numba import njit
-from amardus.atoms import Atoms, get_pressure, get_temperature
-from amardus.parameters import Parameters, Array, FLOAT
+from amardus.system import MDSystem, get_temperature, get_pressure
+from amardus.parameters import FLOAT
 
 
 @njit
-def verlet_integration_position(
-    atoms: Atoms,
-    params: Parameters,
-) -> None:
+def verlet_integration_position(sys: MDSystem) -> None:
+    atoms, params = sys.atoms, sys.params
     dt = params.time_step
     box = atoms.box
     num_atoms = len(atoms.position)
@@ -28,10 +26,8 @@ def verlet_integration_position(
 
 
 @njit
-def verlet_integration_velocity(
-    atoms: Atoms,
-    params: Parameters,
-) -> None:
+def verlet_integration_velocity(sys: MDSystem) -> None:
+    atoms, params = sys.atoms, sys.params
     dt = params.time_step
     num_atoms = len(atoms.position)
     m, v, f = atoms.mass, atoms.velocity, atoms.force
@@ -42,9 +38,8 @@ def verlet_integration_velocity(
 
 
 @njit
-def barostat(atoms: Atoms, params: Parameters, virial: Array) -> None:
-
-    p = get_pressure(atoms, virial)
+def barostat(sys: MDSystem) -> None:
+    atoms, params = sys.atoms, sys.params
     p0 = params.pressure
     dt = params.time_step
     tau = params.barostat_coupling_time
@@ -52,18 +47,20 @@ def barostat(atoms: Atoms, params: Parameters, virial: Array) -> None:
     pos = atoms.position
     box = atoms.box
 
+    p = get_pressure(sys)
     scale = (1.0 - beta * dt / tau * (p0 - p)) ** (1.0 / 3.0)
     pos[:] *= scale
     box[:] *= scale
 
 
 @njit
-def thermostat(atoms, params) -> None:
-    t = get_temperature(atoms)
+def thermostat(sys: MDSystem) -> None:
+    atoms, params = sys.atoms, sys.params
     t0 = params.temperature
     dt = params.time_step
     tau = params.thermostat_coupling_time
     v = atoms.velocity
 
+    t = get_temperature(sys)
     scale = FLOAT(math.sqrt(FLOAT(1.0) + (dt / tau) * (t0 / t - FLOAT(1.0))))
     v[:] *= scale

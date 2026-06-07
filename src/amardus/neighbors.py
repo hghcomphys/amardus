@@ -1,3 +1,4 @@
+from __future__ import annotations
 import math
 import numpy as np
 from typing import NamedTuple
@@ -5,6 +6,7 @@ from numpy.typing import NDArray
 from numba import njit
 from amardus.atoms import Atoms
 from amardus.parameters import Parameters, Array, FLOAT
+from typing import Protocol
 
 
 class CellList(NamedTuple):
@@ -12,10 +14,68 @@ class CellList(NamedTuple):
     atom_index: NDArray
     sizes: tuple[int, int, int]
 
+    @classmethod
+    def build(
+        cls,
+        params: Parameters,
+        box: Array,
+        num_atoms: int,
+        max_atoms_factor: float = 3.0,
+    ) -> CellList:
+
+        cell_length = params.cutoff_radius
+        length = box[0, 0], box[1, 1], box[2, 2]
+
+        cell_sizes = (
+            int(length[0] / cell_length),
+            int(length[1] / cell_length),
+            int(length[2] / cell_length),
+        )
+        for size in cell_sizes:
+            assert size > 2, print(f"{cell_sizes=}")
+
+        system_volume = math.prod(length)
+        cell_volume = cell_length**3
+        cell_max_atoms = int(max_atoms_factor * num_atoms / system_volume * cell_volume)
+
+        cell_atom_index = np.empty(
+            shape=(math.prod(cell_sizes), cell_max_atoms),
+            dtype=np.int32,
+        )
+        cell_num_atoms = np.empty(
+            math.prod(cell_sizes),
+            dtype=np.int32,
+        )
+        return cls(
+            sizes=cell_sizes,
+            num_atoms_per_cell=cell_num_atoms,
+            atom_index=cell_atom_index,
+        )
+
 
 class NeighborList(NamedTuple):
     num_neighbors_per_atom: NDArray
     neighbor_index: NDArray
+
+    @classmethod
+    def build(
+        cls,
+        params: Parameters,
+        num_atoms: int,
+    ) -> NeighborList:
+
+        neighbor_index = np.empty(
+            shape=(num_atoms, params.neighbor_max_atoms),
+            dtype=np.int32,
+        )
+        neighbor_num_atoms = np.empty(
+            num_atoms,
+            dtype=np.int32,
+        )
+        return cls(
+            num_neighbors_per_atom=neighbor_num_atoms,
+            neighbor_index=neighbor_index,
+        )
 
 
 @njit
@@ -35,80 +95,18 @@ def apply_pbc(
     return rij
 
 
-def initialize_neighbors(
-    params: Parameters,
-    box: Array,
-    num_atoms: int,
-) -> tuple[CellList, NeighborList]:
-    # Cell list
-    cells = initialize_cells(params, box, num_atoms)
-    # Neighbor list
-    neighbor_index = np.empty(
-        shape=(num_atoms, params.neighbor_max_atoms),
-        dtype=np.int32,
-    )
-    neighbor_num_atoms = np.empty(
-        num_atoms,
-        dtype=np.int32,
-    )
-    neighbors = NeighborList(
-        num_neighbors_per_atom=neighbor_num_atoms,
-        neighbor_index=neighbor_index,
-    )
-    # print(f"Cell length:", params.cutoff_radius)
-    # print(f"Cell sizes: {cells.sizes}")
-    return (
-        cells,
-        neighbors,
-    )
-
-
-def initialize_cells(
-    params: Parameters,
-    box: Array,
-    num_atoms: int,
-) -> CellList:
-
-    cell_length = params.cutoff_radius
-    length = box[0, 0], box[1, 1], box[2, 2]
-
-    cell_sizes = (
-        int(length[0] / cell_length),
-        int(length[1] / cell_length),
-        int(length[2] / cell_length),
-    )
-    for size in cell_sizes:
-        assert size > 2, print(f"{cell_sizes=}")
-
-    system_volume = math.prod(length)
-    cell_volume = cell_length**3
-    cell_max_atoms = 3 * int(num_atoms / system_volume * cell_volume)
-    # print("Cell max atoms:", cell_max_atoms)
-
-    cell_atom_index = np.empty(
-        shape=(math.prod(cell_sizes), cell_max_atoms),
-        dtype=np.int32,
-    )
-    cell_num_atoms = np.empty(
-        math.prod(cell_sizes),
-        dtype=np.int32,
-    )
-    cells = CellList(
-        sizes=cell_sizes,
-        num_atoms_per_cell=cell_num_atoms,
-        atom_index=cell_atom_index,
-    )
-    return cells
+class SystemInterface(Protocol):
+    atoms: Atoms
+    params: Parameters
+    cells: CellList
+    neighbors: NeighborList
 
 
 @njit
-def update_neighbors(
-    atoms: Atoms,
-    params: Parameters,
-    cells: CellList,
-    neighbors: NeighborList,
-) -> None:
+def update_neighbors(sys: SystemInterface) -> None:
 
+    atoms, params = sys.atoms, sys.params
+    cells, neighbors = sys.cells, sys.neighbors
     neighbor_cutoff2 = (params.cutoff_radius + params.skin_radius) ** 2
     box, position = atoms.box, atoms.position
     length = box[0, 0], box[1, 1], box[2, 2]
@@ -192,7 +190,8 @@ def update_neighbors(
 
 
 @njit
-def check_if_neighbor_need_update(atoms: Atoms, params: Parameters):
+def check_if_neighbor_need_update(sys: SystemInterface):
+    atoms, params = sys.atoms, sys.params
     num_atoms = len(atoms.position)
     displacement_cutoff2 = 0.25 * params.skin_radius * params.skin_radius
     r2 = FLOAT(0.0)

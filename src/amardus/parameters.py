@@ -12,7 +12,6 @@ ORDER: Literal["C", "F"] = "C"
 class Unit(NamedTuple):  
     boltzman = 8.617343e-5   # eV/K
     coulomb = 14.399645478   # eV/(e^2 * A)
-    femtoseconds: float = 1.0 / 1.018051e1
     picoseconds: float = 1.0e3 / 1.018051e1
     bar: float = 1.0 / 1.602e6
     grcm3: float = 1.0 / 1.66054

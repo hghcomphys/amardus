@@ -5,7 +5,7 @@ from amardus import (
     Atoms,
     simulate,
 )
-from ase.io import read as ase_read
+from ase.io import read as read_ase
 from ase import Atoms as AseAtoms
 from ase.md.velocitydistribution import (
     MaxwellBoltzmannDistribution,
@@ -13,13 +13,14 @@ from ase.md.velocitydistribution import (
 )
 import numpy as np
 
+from amardus.system import MDSystem
+
 
 def run_simulation() -> None:
 
     unit = Unit()
-    time_step = 1.0 * unit.femtoseconds
+    time_step = 0.001 * unit.picoseconds
     cutoff = 9.0 * unit.angstrom
-
     params = Parameters(
         time_step=time_step,
         temperature=300.0 * unit.kelvin,
@@ -36,20 +37,21 @@ def run_simulation() -> None:
         coulomb=unit.coulomb,
     )
 
-    ase_atoms: AseAtoms = ase_read("argon.xyz")
+    atoms_ase: AseAtoms = read_ase("argon.xyz")
     MaxwellBoltzmannDistribution(
-        ase_atoms,
+        atoms_ase,
         temperature_K=params.temperature,
         rng=np.random.default_rng(1234),
     )
-    Stationary(ase_atoms)
+    Stationary(atoms_ase)
+    atoms = Atoms.from_ase(atoms_ase)
 
-    atoms = Atoms.from_ase(ase_atoms)
+    system = MDSystem.build(atoms, params)
     reporter = StateReporter(interval=100, unit=unit)
 
     print("MD simulation of Lennard-Jones particles.")
     print(f"Number of atoms: {len(atoms)}")
-    simulate(params, atoms, steps=1_001, reporter=reporter)
+    simulate(system, steps=1_001, reporters=[reporter])
     print("Done.")
 
 
