@@ -5,17 +5,16 @@ MD engine from scratch.
 > *Amardus* is the Greek name for the *Sefid-Rud*, a long river in northern Iran historically known for its abundant fish.
 
 
-Todo:
+Features:
 
-- [x] Linear MD
-- [x] NVT and NPT ensembles
-- [x] Short-range interaction
-- [ ] Bonded interaction
-- [ ] Long-range electrostatic 
-- [ ] Support Amber FF
+- [x] Linear MD (linked cell, Verlet list)
+- [x] NVT and NPT ensembles (Brendsen)
+- [x] Short-range interaction (Lennard-Jones)
+- [ ] Bonded interactions (bonds, angles, dihedrals)
+- [ ] Long-range interaction (Coulomb)
+- [ ] Constraints (SHAKE, RATTLE)
+- [ ] Free energy calculation (MBAR)
+- [ ] Parallelization (OpenMP, MPI)
+- [ ] CHARMM/AMBER FF
 - [ ] Machine-learning FF 
-- [ ] Free energy calculation
-- [ ] GPU implementation
-
-
-
+- [ ] GPU-acceleration

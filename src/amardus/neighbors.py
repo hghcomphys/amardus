@@ -197,7 +197,7 @@ def update_neighbors(sys: SystemInterface) -> None:
 
 
 @njit
-def check_if_neighbor_need_update(sys: SystemInterface):
+def check_if_neighbor_need_update(sys: SystemInterface) -> bool:
     atoms, params = sys.atoms, sys.params
     num_atoms = len(atoms.position)
     displacement_cutoff2 = 0.25 * params.skin_radius **2
