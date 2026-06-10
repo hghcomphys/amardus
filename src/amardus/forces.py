@@ -1,9 +1,11 @@
 import math
 import numpy as np
 from numba import njit
+from typing import NamedTuple
 from amardus.system import MDSystem
 from amardus.neighbors import apply_pbc
 from amardus.parameters import FLOAT
+from amardus.parameters import Array
 
 
 @njit
@@ -17,12 +19,19 @@ def compute_forces(sys: MDSystem) -> None:
 
 
 @njit
-def compute_coul_forces(
-    sys: MDSystem
-) -> None:
+def compute_coul_forces(sys: MDSystem) -> None:
     compute_ewald_real_forces(sys)
     compute_ewald_reciprocal_forces(sys)
     compute_ewald_self_energy(sys)
+
+
+class LennardJones(NamedTuple):
+    epsilon: FLOAT
+    sigma: FLOAT
+
+
+class ForceField(NamedTuple):
+    lennard_jones: LennardJones
 
 
 @njit
@@ -34,11 +43,11 @@ def compute_lj_forces(sys: MDSystem) -> None:
     force = sys.atoms.force
     position = sys.atoms.position
     cutoff2 = sys.params.cutoff_radius**2
+    lj_params = sys.forcefield.lennard_jones
     length = box[0, 0], box[1, 1], box[2, 2]
     num_atoms = len(position)
 
-    epsilon = FLOAT(1.032e-2)
-    sigma = FLOAT(3.405)
+    epsilon, sigma = lj_params.epsilon, lj_params.sigma
     sigma3 = sigma * sigma * sigma
     sigma6 = sigma3 * sigma3
     sigma12 = sigma6 * sigma6
@@ -46,7 +55,6 @@ def compute_lj_forces(sys: MDSystem) -> None:
     e48s12 = FLOAT(48.0) * epsilon * sigma12
     e4s6 = FLOAT(4.0) * epsilon * sigma6
     e4s12 = FLOAT(4.0) * epsilon * sigma12
-
 
     for ni in range(num_atoms):
         for j in range(neighbors.num_neighbors_per_atom[ni]):
@@ -89,7 +97,7 @@ def compute_ewald_real_forces(sys: MDSystem) -> None:
     force = atoms.force
     position = atoms.position
     charge = atoms.charge
-    cutoff2 = params.cutoff_radius **2
+    cutoff2 = params.cutoff_radius**2
     length = box[0, 0], box[1, 1], box[2, 2]
     alpha = params.ewald_alpha
     num_atoms = len(position)
@@ -132,9 +140,7 @@ def compute_ewald_real_forces(sys: MDSystem) -> None:
 
 
 @njit
-def compute_ewald_reciprocal_forces(
-    sys: MDSystem
-) -> None:
+def compute_ewald_reciprocal_forces(sys: MDSystem) -> None:
 
     atoms, params = sys.atoms, sys.params
     energy = sys.energy
@@ -200,12 +206,9 @@ def compute_ewald_reciprocal_forces(
 
 
 @njit
-def compute_ewald_self_energy(
-    sys: MDSystem
-) -> None:
+def compute_ewald_self_energy(sys: MDSystem) -> None:
     atoms, params = sys.atoms, sys.params
     energy = sys.energy
     charge = atoms.charge
     alpha = params.ewald_alpha
     energy[0] += -alpha / math.sqrt(math.pi) * np.sum(charge**2)
-

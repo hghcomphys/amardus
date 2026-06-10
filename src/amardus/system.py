@@ -1,10 +1,13 @@
 from __future__ import annotations
+import numpy as np
 from numba import njit
-from typing import NamedTuple
+from typing import NamedTuple, TypeAlias
 from amardus.atoms import Atoms
 from amardus.neighbors import CellList, NeighborList
 from amardus.parameters import Parameters, Array, FLOAT
-import numpy as np
+
+
+ForceField: TypeAlias = tuple
 
 
 class MDSystem(NamedTuple):
@@ -14,18 +17,25 @@ class MDSystem(NamedTuple):
     neighbors: NeighborList
     energy: Array
     virial: Array
+    forcefield: ForceField
 
     @classmethod
-    def create(cls, atoms: Atoms, params: Parameters) -> MDSystem:
+    def create(
+        cls,
+        atoms: Atoms,
+        params: Parameters,
+        forcefield: ForceField,
+    ) -> MDSystem:
         num_atoms = len(atoms.position)
 
         return cls(
-            atoms=atoms, 
-            params=params, 
-            cells=CellList.create(params, atoms.box, num_atoms), 
-            neighbors=NeighborList.create(params, num_atoms), 
-            energy = np.empty(1, dtype=FLOAT),
-            virial = np.empty(1, dtype=FLOAT),
+            atoms=atoms,
+            params=params,
+            cells=CellList.create(params, atoms.box, num_atoms),
+            neighbors=NeighborList.create(params, num_atoms),
+            energy=np.empty(1, dtype=FLOAT),
+            virial=np.empty(1, dtype=FLOAT),
+            forcefield=forcefield,
         )
 
 
@@ -48,5 +58,3 @@ def get_pressure(sys: MDSystem) -> float:
     vol = np.linalg.det(sys.atoms.box)
     virial = sys.virial
     return (np.sum(m * v * v) - virial[0]) / (FLOAT(3.0) * vol)
-
-

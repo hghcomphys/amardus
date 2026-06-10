@@ -1,3 +1,11 @@
+import numpy as np
+from ase.io import read as read_ase
+from ase import Atoms as AseAtoms
+from ase.md.velocitydistribution import (
+    MaxwellBoltzmannDistribution,
+    Stationary,
+)
+from amardus.forces import LennardJones
 from amardus.io import StateReporter
 from amardus import (
     Unit,
@@ -5,16 +13,9 @@ from amardus import (
     Atoms,
     MDSystem,
     MDSimulation,
+    LennardJones,
+    ForceField,
 )
-from ase.io import read as read_ase
-from ase import Atoms as AseAtoms
-from ase.md.velocitydistribution import (
-    MaxwellBoltzmannDistribution,
-    Stationary,
-)
-import numpy as np
-
-from amardus.system import MDSystem
 
 
 def run_simulation() -> None:
@@ -47,10 +48,18 @@ def run_simulation() -> None:
     Stationary(atoms_ase)
     atoms = Atoms.from_ase(atoms_ase)
 
-    system = MDSystem.create(atoms, params)
+    forcefield = ForceField(
+        LennardJones(
+            epsilon=np.float64(1.032e-2),
+            sigma=np.float64(3.405),
+        )
+    )
+
+    system = MDSystem.create(atoms, params, forcefield)
+
     reporter = StateReporter(interval=100, unit=unit)
     simulation = MDSimulation(
-        system, 
+        system,
         reporters=[reporter],
     )
 
