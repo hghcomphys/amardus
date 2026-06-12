@@ -26,7 +26,7 @@ class MDSystem(NamedTuple):
         params: Parameters,
         forcefield: ForceField,
     ) -> MDSystem:
-        num_atoms = len(atoms.position)
+        num_atoms = len(atoms.positions)
 
         return cls(
             atoms=atoms,
@@ -41,20 +41,20 @@ class MDSystem(NamedTuple):
 
 @njit
 def get_kinetic_energy(sys: MDSystem) -> FLOAT:
-    m, v = sys.atoms.mass.reshape(-1, 1), sys.atoms.velocity
+    m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
     return FLOAT(0.5) * np.sum(m * v * v)
 
 
 @njit
 def get_temperature(sys: MDSystem) -> FLOAT:
-    m, v = sys.atoms.mass.reshape(-1, 1), sys.atoms.velocity
+    m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
     KB = sys.params.boltzman
     return np.mean(m * v * v) / KB
 
 
 @njit
 def get_pressure(sys: MDSystem) -> float:
-    m, v = sys.atoms.mass.reshape(-1, 1), sys.atoms.velocity
+    m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
     vol = np.linalg.det(sys.atoms.box)
     virial = sys.virial
     return (np.sum(m * v * v) - virial[0]) / (FLOAT(3.0) * vol)

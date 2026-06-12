@@ -1,7 +1,7 @@
 import math
 import numpy as np
-from typing import Protocol, TextIO
-from amardus.atoms import Atoms
+from pathlib import Path
+from typing import Protocol
 from amardus.parameters import Unit
 from amardus.system import (
     MDSystem,
@@ -9,6 +9,8 @@ from amardus.system import (
     get_pressure,
     get_temperature,
 )
+
+PathLike = Path | str
 
 
 class ReporterInteface(Protocol):
@@ -59,7 +61,7 @@ class StateReporter(ReporterInteface):
         temp = get_temperature(sys)
         pres = get_pressure(sys)
         vol = np.linalg.det(sys.atoms.box)
-        dens = np.sum(sys.atoms.mass) / vol
+        dens = np.sum(sys.atoms.masses) / vol
 
         print(
             f"{current_step:<8}"
@@ -76,10 +78,44 @@ class StateReporter(ReporterInteface):
         )
 
 
-def save_structure(atoms: Atoms, file: TextIO) -> None:
-    position = atoms.position
-    natoms = position.shape[0]
-    file.write(f"{natoms}\n\n")
-    for i in range(natoms):
-        file.write(f"{'Ar'}\t{position[i, 0]} {position[i, 1]} {position[i, 2]}\n")
-    file.flush()
+class XyzReporter(ReporterInteface):
+
+    def __init__(
+        self, 
+        filename: PathLike,
+        atom_types_map: dict[str, int],
+        unit: Unit,
+        interval: int = 1000,
+        flush_immediately: bool = False,
+    ) -> None:
+        self.file = open(str(filename), "w")
+        self.atoms_symbol_map = {v: k for k, v in atom_types_map.items()}
+        self.unit = unit
+        self.interval = interval
+        self.flush_immediately = flush_immediately
+
+    def gather(self, sys: MDSystem, current_step: int) -> None:
+
+        if current_step % self.interval != 0:
+            return 
+        
+        pos = sys.atoms.positions
+        num_atoms = len(sys.atoms)
+        unit = self.unit
+
+        self.file.write(f"{num_atoms}\n\n")
+        for i in range(num_atoms):
+            at = sys.atoms.atom_types[i]
+            self.file.write(
+                f"{self.atoms_symbol_map[at]}\t"
+                f"{pos[i, 0] / unit.angstrom} "
+                f"{pos[i, 1] / unit.angstrom} "
+                f"{pos[i, 2] / unit.angstrom} "
+                "\n"
+            )
+            if self.flush_immediately:
+                self.file.flush()
+
+    def __del__(self):
+        if self.file:
+            self.file.close()

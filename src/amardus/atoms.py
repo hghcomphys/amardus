@@ -1,38 +1,42 @@
 from __future__ import annotations
 import numpy as np
 from typing import NamedTuple
-from amardus.parameters import Array, FLOAT, ORDER
+from amardus.parameters import Array, FLOAT, ORDER, IndexArray, INDEX
 from ase import Atoms as AseAtoms
 
 
 class Atoms(NamedTuple):
-    mass: Array
-    position: Array
-    velocity: Array
-    force: Array
-    charge: Array
+    masses: Array
+    positions: Array
+    velocities: Array
+    forces: Array
+    charges: Array
     box: Array
-    position_old: Array
+    positions_old: Array
+    atom_types: IndexArray 
 
     @classmethod
-    def from_ase(cls, atoms: AseAtoms) -> Atoms:
-        charge = atoms.get_initial_charges()
-        mass = atoms.get_masses()
-        position = np.asarray(atoms.get_positions(), dtype=FLOAT, order=ORDER)
-        velocity = np.asarray(atoms.get_velocities(), dtype=FLOAT, order=ORDER)
-        force = np.empty(position.shape, dtype=FLOAT, order=ORDER)
+    def from_ase(cls, atoms: AseAtoms, atom_types_map: dict[str, int]) -> Atoms:
+        charges = atoms.get_initial_charges()
+        masses = atoms.get_masses()
+        positions = np.asarray(atoms.get_positions(), dtype=FLOAT, order=ORDER)
+        velocities = np.asarray(atoms.get_velocities(), dtype=FLOAT, order=ORDER)
+        forces = np.empty(positions.shape, dtype=FLOAT, order=ORDER)
         box = np.asarray(atoms.cell.array, dtype=FLOAT)
+        atom_types = np.array([atom_types_map[s] for s in atoms.get_chemical_symbols()], dtype=INDEX)
+        
         return cls(
-            mass=mass,
-            position=position,
-            velocity=velocity,
-            force=force,
-            charge=charge,
+            masses=masses,
+            positions=positions,
+            velocities=velocities,
+            forces=forces,
+            charges=charges,
             box=box,
-            position_old=position.copy(),
+            positions_old=positions.copy(),
+            atom_types=atom_types,
         )
 
     def __len__(self):
-        return len(self.position)
+        return len(self.positions)
 
 

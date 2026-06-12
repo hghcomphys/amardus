@@ -1,16 +1,16 @@
+from __future__ import annotations
 import math
 import numpy as np
 from numba import njit
 from typing import NamedTuple
 from amardus.system import MDSystem
 from amardus.neighbors import apply_pbc
-from amardus.parameters import FLOAT
-from amardus.parameters import Array
+from amardus.parameters import FLOAT, Array
 
 
 @njit
 def compute_forces(sys: MDSystem) -> None:
-    sys.atoms.force[:] = FLOAT(0.0)
+    sys.atoms.forces[:] = FLOAT(0.0)
     sys.energy[0] = FLOAT(0.0)
     sys.virial[0] = FLOAT(0.0)
 
@@ -26,8 +26,26 @@ def compute_coul_forces(sys: MDSystem) -> None:
 
 
 class LennardJones(NamedTuple):
-    epsilon: FLOAT
-    sigma: FLOAT
+    epsilon: Array
+    sigma: Array
+
+    @classmethod
+    def from_atom_types(
+            cls, 
+            epsilon: list[float], 
+            sigma: list[float],
+    ) -> LennardJones:
+
+        epsilon = np.array(epsilon, dtype=FLOAT)
+        sigma = np.array(sigma, dtype=FLOAT)
+        
+        epsilon_matrix = np.sqrt(epsilon[:, None] * epsilon[None, :])
+        sigma_matrix = 0.5 * (sigma[:, None] + sigma[None, :])
+
+        return cls(epsilon=epsilon_matrix, sigma=sigma_matrix)
+
+
+
 
 
 class ForceField(NamedTuple):
@@ -40,12 +58,13 @@ def compute_lj_forces(sys: MDSystem) -> None:
     energy = sys.energy
     virial = sys.virial
     neighbors = sys.neighbors
-    force = sys.atoms.force
-    position = sys.atoms.position
+    forces = sys.atoms.forces
+    pos = sys.atoms.positions
+    atom_types = sys.atoms.atom_types
     cutoff2 = sys.params.cutoff_radius**2
     lj_params = sys.forcefield.lennard_jones
     length = box[0, 0], box[1, 1], box[2, 2]
-    num_atoms = len(position)
+    num_atoms = len(pos)
 
     epsilon, sigma = lj_params.epsilon, lj_params.sigma
     sigma3 = sigma * sigma * sigma
@@ -57,13 +76,16 @@ def compute_lj_forces(sys: MDSystem) -> None:
     e4s12 = FLOAT(4.0) * epsilon * sigma12
 
     for ni in range(num_atoms):
+        ai = atom_types[ni] 
+
         for j in range(neighbors.num_neighbors_per_atom[ni]):
             nj = neighbors.neighbor_index[ni, j]
+            aj = atom_types[nj]
 
             if ni < nj:
-                dx = apply_pbc(position[nj, 0] - position[ni, 0], length[0])
-                dy = apply_pbc(position[nj, 1] - position[ni, 1], length[1])
-                dz = apply_pbc(position[nj, 2] - position[ni, 2], length[2])
+                dx = apply_pbc(pos[nj, 0] - pos[ni, 0], length[0])
+                dy = apply_pbc(pos[nj, 1] - pos[ni, 1], length[1])
+                dz = apply_pbc(pos[nj, 2] - pos[ni, 2], length[2])
                 r2 = dx * dx + dy * dy + dz * dz
                 if r2 > cutoff2:
                     continue
@@ -74,16 +96,16 @@ def compute_lj_forces(sys: MDSystem) -> None:
                 r8inv = r4inv * r4inv
                 r12inv = r4inv * r8inv
                 r14inv = r6inv * r8inv
-                fij = e24s6 * r8inv - e48s12 * r14inv
+                fij = e24s6[ai][aj] * r8inv - e48s12[ai][aj] * r14inv
                 fij_x, fij_y, fij_z = fij * dx, fij * dy, fij * dz
 
-                force[ni, 0] += fij_x
-                force[ni, 1] += fij_y
-                force[ni, 2] += fij_z
-                force[nj, 0] -= fij_x
-                force[nj, 1] -= fij_y
-                force[nj, 2] -= fij_z
-                energy[0] += e4s12 * r12inv - e4s6 * r6inv
+                forces[ni, 0] += fij_x
+                forces[ni, 1] += fij_y
+                forces[ni, 2] += fij_z
+                forces[nj, 0] -= fij_x
+                forces[nj, 1] -= fij_y
+                forces[nj, 2] -= fij_z
+                energy[0] += e4s12[ai][aj] * r12inv - e4s6[ai][aj] * r6inv
                 virial[0] += dx * fij_x + dy * fij_y + dz * fij_z
 
 
@@ -94,13 +116,13 @@ def compute_ewald_real_forces(sys: MDSystem) -> None:
     neighbors = sys.neighbors
     energy, virial = sys.energy, sys.virial
     box = atoms.box
-    force = atoms.force
-    position = atoms.position
-    charge = atoms.charge
+    forces = atoms.forces
+    pos = atoms.positions
+    charge = atoms.charges
     cutoff2 = params.cutoff_radius**2
     length = box[0, 0], box[1, 1], box[2, 2]
     alpha = params.ewald_alpha
-    num_atoms = len(position)
+    num_atoms = len(pos)
     KE = params.coulomb
 
     for ni in range(num_atoms):
@@ -108,9 +130,9 @@ def compute_ewald_real_forces(sys: MDSystem) -> None:
             nj = neighbors.neighbor_index[ni, j]
 
             if ni < nj:
-                dx = apply_pbc(position[nj, 0] - position[ni, 0], length[0])
-                dy = apply_pbc(position[nj, 1] - position[ni, 1], length[1])
-                dz = apply_pbc(position[nj, 2] - position[ni, 2], length[2])
+                dx = apply_pbc(pos[nj, 0] - pos[ni, 0], length[0])
+                dy = apply_pbc(pos[nj, 1] - pos[ni, 1], length[1])
+                dz = apply_pbc(pos[nj, 2] - pos[ni, 2], length[2])
                 r2 = dx * dx + dy * dy + dz * dz
                 if r2 > cutoff2:
                     continue
@@ -129,12 +151,12 @@ def compute_ewald_real_forces(sys: MDSystem) -> None:
                 )
                 fij_x, fij_y, fij_z = fij * dx, fij * dy, fij * dz
 
-                force[ni, 0] += fij_x
-                force[ni, 1] += fij_y
-                force[ni, 2] += fij_z
-                force[nj, 0] -= fij_x
-                force[nj, 1] -= fij_y
-                force[nj, 2] -= fij_z
+                forces[ni, 0] += fij_x
+                forces[ni, 1] += fij_y
+                forces[ni, 2] += fij_z
+                forces[nj, 0] -= fij_x
+                forces[nj, 1] -= fij_y
+                forces[nj, 2] -= fij_z
                 energy[0] += coef_1 * erfc_term
                 virial[0] += dx * fij_x + dy * fij_y + dz * fij_z
 
@@ -144,15 +166,15 @@ def compute_ewald_reciprocal_forces(sys: MDSystem) -> None:
 
     atoms, params = sys.atoms, sys.params
     energy = sys.energy
-    position = atoms.position
-    charge = atoms.charge
-    force = atoms.force
+    pos = atoms.positions
+    charge = atoms.charges
+    forces = atoms.forces
     box = atoms.box
     vol = np.linalg.det(box)
     length = box[0, 0], box[1, 1], box[2, 2]
     kmax = params.ewald_kmax
     alpha = params.ewald_alpha
-    num_atoms = len(position)
+    num_atoms = len(pos)
 
     energy_sum = FLOAT(0)
     for nx in range(-kmax, kmax + 1):
@@ -179,9 +201,9 @@ def compute_ewald_reciprocal_forces(sys: MDSystem) -> None:
                 Sk_imag = 0.0
                 for ni in range(num_atoms):
                     kr = (
-                        kvec[0] * position[ni, 0]
-                        + kvec[1] * position[ni, 1]
-                        + kvec[2] * position[ni, 2]
+                        kvec[0] * pos[ni, 0]
+                        + kvec[1] * pos[ni, 1]
+                        + kvec[2] * pos[ni, 2]
                     )
                     Sk_real += charge[ni] * math.cos(kr)
                     Sk_imag += charge[ni] * math.sin(kr)
@@ -190,9 +212,9 @@ def compute_ewald_reciprocal_forces(sys: MDSystem) -> None:
                 # forces
                 for ni in range(num_atoms):
                     kr_i = (
-                        kvec[0] * position[ni, 0]
-                        + kvec[1] * position[ni, 1]
-                        + kvec[2] * position[ni, 2]
+                        kvec[0] * pos[ni, 0]
+                        + kvec[1] * pos[ni, 1]
+                        + kvec[2] * pos[ni, 2]
                     )
                     force_factor = (
                         2.0
@@ -200,7 +222,8 @@ def compute_ewald_reciprocal_forces(sys: MDSystem) -> None:
                         * charge[ni]
                         * (Sk_imag * math.cos(kr_i) - Sk_real * math.sin(kr_i))
                     )
-                    force[ni] += force_factor * kvec
+                    forces[ni] += force_factor * kvec
+
 
         energy[0] += 0.5 * energy_sum
 
@@ -209,6 +232,6 @@ def compute_ewald_reciprocal_forces(sys: MDSystem) -> None:
 def compute_ewald_self_energy(sys: MDSystem) -> None:
     atoms, params = sys.atoms, sys.params
     energy = sys.energy
-    charge = atoms.charge
+    charge = atoms.charges
     alpha = params.ewald_alpha
     energy[0] += -alpha / math.sqrt(math.pi) * np.sum(charge**2)

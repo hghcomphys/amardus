@@ -115,17 +115,17 @@ def update_neighbors(sys: SystemInterface) -> None:
     atoms, params = sys.atoms, sys.params
     cells, neighbors = sys.cells, sys.neighbors
     neighbor_cutoff2 = (params.cutoff_radius + params.skin_radius) ** 2
-    box, position = atoms.box, atoms.position
+    box, pos = atoms.box, atoms.positions
     length = box[0, 0], box[1, 1], box[2, 2]
-    num_atoms = len(position)
+    num_atoms = len(pos)
     nc = cells.sizes
 
     # Cell list
     cells.num_atoms_per_cell[:] = 0
     for n in range(num_atoms):
-        ic0 = math.floor(position[n, 0] * nc[0] / length[0])
-        ic1 = math.floor(position[n, 1] * nc[1] / length[1])
-        ic2 = math.floor(position[n, 2] * nc[2] / length[2])
+        ic0 = math.floor(pos[n, 0] * nc[0] / length[0])
+        ic1 = math.floor(pos[n, 1] * nc[1] / length[1])
+        ic2 = math.floor(pos[n, 2] * nc[2] / length[2])
         idx = index3d((ic0, ic1, ic2), nc)
         cells.atom_index[idx, cells.num_atoms_per_cell[idx]] = n
         cells.num_atoms_per_cell[idx] += 1
@@ -164,15 +164,15 @@ def update_neighbors(sys: SystemInterface) -> None:
 
                                     if ni < nj:
                                         dx = apply_pbc(
-                                            position[nj, 0] - position[ni, 0],
+                                            pos[nj, 0] - pos[ni, 0],
                                             length[0],
                                         )
                                         dy = apply_pbc(
-                                            position[nj, 1] - position[ni, 1],
+                                            pos[nj, 1] - pos[ni, 1],
                                             length[1],
                                         )
                                         dz = apply_pbc(
-                                            position[nj, 2] - position[ni, 2],
+                                            pos[nj, 2] - pos[ni, 2],
                                             length[2],
                                         )
                                         r2 = dx * dx + dy * dy + dz * dz
@@ -191,20 +191,20 @@ def update_neighbors(sys: SystemInterface) -> None:
 
     # Update old position
     for n in range(num_atoms):
-        atoms.position_old[n, 0] = position[n, 0]
-        atoms.position_old[n, 1] = position[n, 1]
-        atoms.position_old[n, 2] = position[n, 2]
+        atoms.positions_old[n, 0] = pos[n, 0]
+        atoms.positions_old[n, 1] = pos[n, 1]
+        atoms.positions_old[n, 2] = pos[n, 2]
 
 
 @njit
 def check_if_neighbor_need_update(sys: SystemInterface) -> bool:
     atoms, params = sys.atoms, sys.params
-    num_atoms = len(atoms.position)
+    num_atoms = len(atoms.positions)
     displacement_cutoff2 = 0.25 * params.skin_radius **2
     r2 = FLOAT(0.0)
     for n in range(num_atoms):
         for dim in range(3):
-            dx = atoms.position[n, dim] - atoms.position_old[n, dim]
+            dx = atoms.positions[n, dim] - atoms.positions_old[n, dim]
             r2 += dx * dx
         if r2 > displacement_cutoff2:
             return True

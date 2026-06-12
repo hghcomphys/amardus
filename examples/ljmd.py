@@ -6,7 +6,7 @@ from ase.md.velocitydistribution import (
     Stationary,
 )
 from amardus.forces import LennardJones
-from amardus.io import StateReporter
+from amardus.io import StateReporter, XyzReporter
 from amardus import (
     Unit,
     Parameters,
@@ -20,12 +20,23 @@ from amardus import (
 
 def run_simulation() -> None:
 
+    print(r"""
+      _                            _
+     / \   _ __ ___   __ _ _ __ __| |_   _ ___
+    / _ \ | '_ ` _ \ / _` | '__/ _` | | | / __|
+   / ___ \| | | | | | (_| | | | (_| | |_| \__ \
+  /_/   \_\_| |_| |_|\__,_|_|  \__,_|\__,_|___/
+
+           Molecular Dynamics Engine
+-------------------------------------------------
+""")
+
     unit = Unit()
     time_step = 0.001 * unit.picoseconds
     cutoff = 9.0 * unit.angstrom
     params = Parameters(
         time_step=time_step,
-        temperature=300.0 * unit.kelvin,
+        temperature=100.0 * unit.kelvin,
         pressure=1.0 * unit.bar,
         cutoff_radius=cutoff * unit.angstrom,
         skin_radius=1.0 * unit.angstrom,
@@ -38,7 +49,6 @@ def run_simulation() -> None:
         boltzman=unit.boltzman,
         coulomb=unit.coulomb,
     )
-
     atoms_ase: AseAtoms = read_ase("argon.xyz")
     MaxwellBoltzmannDistribution(
         atoms_ase,
@@ -46,28 +56,24 @@ def run_simulation() -> None:
         rng=np.random.default_rng(1234),
     )
     Stationary(atoms_ase)
-    atoms = Atoms.from_ase(atoms_ase)
-
+    atom_types_map = {"Ar": 0}
+    atoms = Atoms.from_ase(atoms_ase, atom_types_map)
     forcefield = ForceField(
-        LennardJones(
-            epsilon=np.float64(1.032e-2),
-            sigma=np.float64(3.405),
+        LennardJones.from_atom_types(
+            epsilon=[1.032e-2],
+            sigma=[3.405],
         )
     )
-
     system = MDSystem.create(atoms, params, forcefield)
-
-    reporter = StateReporter(interval=100, unit=unit)
-    simulation = MDSimulation(
-        system,
-        reporters=[reporter],
-    )
-
-    print("MD simulation of Lennard-Jones particles.")
+    print("System: Lennard-Jones particles")
     print(f"Number of atoms: {len(atoms)}")
+
+    simulation = MDSimulation(system)
+    simulation.reporters.append(StateReporter(interval=100, unit=unit))
+    # simulation.reporters.append(XyzReporter("out.xyz", atom_types_map, interval=1000, unit=unit))
     simulation.step(1_001)
-    # simulation.step(1_001)
-    print("Done.")
+    # simulation.step(30_000)
+    # simulation.step(30_000)
 
 
 if __name__ == "__main__":

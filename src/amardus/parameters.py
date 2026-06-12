@@ -1,11 +1,11 @@
-from math import e
-
 import numpy as np
 from numpy.typing import NDArray
 from typing import Literal, NamedTuple, TypeAlias
 
 FLOAT: TypeAlias = np.float64
+INDEX: TypeAlias = np.int32
 Array: TypeAlias = NDArray[FLOAT]
+IndexArray: TypeAlias = NDArray[INDEX]
 ORDER: Literal["C", "F"] = "C"
 
 

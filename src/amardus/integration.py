@@ -10,8 +10,8 @@ def verlet_integration_position(sys: MDSystem) -> None:
     atoms, params = sys.atoms, sys.params
     dt = params.time_step
     box = atoms.box
-    num_atoms = len(atoms.position)
-    m, r, v, f = atoms.mass, atoms.position, atoms.velocity, atoms.force
+    num_atoms = len(atoms.positions)
+    m, r, v, f = atoms.masses, atoms.positions, atoms.velocities, atoms.forces
     length = box[0, 0], box[1, 1], box[2, 2]
 
     for n in range(num_atoms):
@@ -29,7 +29,7 @@ def verlet_integration_position(sys: MDSystem) -> None:
 def verlet_integration_velocity(sys: MDSystem) -> None:
     atoms, params = sys.atoms, sys.params
     dt = params.time_step
-    m, v, f = atoms.mass.reshape(-1, 1), atoms.velocity, atoms.force
+    m, v, f = atoms.masses.reshape(-1, 1), atoms.velocities, atoms.forces
     v += FLOAT(0.5) * dt / m * f
 
 @njit
@@ -38,7 +38,7 @@ def thermostat(sys: MDSystem) -> None:
     t0 = params.temperature
     dt = params.time_step
     tau = params.thermostat_coupling_time
-    v = atoms.velocity
+    v = atoms.velocities
 
     t = get_temperature(sys)
     scale = FLOAT(math.sqrt(FLOAT(1.0) + (dt / tau) * (t0 / t - FLOAT(1.0))))
@@ -51,7 +51,7 @@ def barostat(sys: MDSystem) -> None:
     dt = params.time_step
     tau = params.barostat_coupling_time
     beta = params.compressibility
-    pos = atoms.position
+    pos = atoms.positions
     box = atoms.box
 
     p = get_pressure(sys)
