@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Protocol
 from amardus.parameters import Unit
 from amardus.system import (
-    MDSystem,
+    System,
     get_kinetic_energy,
     get_pressure,
     get_temperature,
@@ -14,7 +14,7 @@ PathLike = Path | str
 
 
 class ReporterInteface(Protocol):
-    def gather(self, sys: MDSystem, current_step: int) -> None: ...
+    def gather(self, sys: System, current_step: int) -> None: ...
 
 
 class StateReporter(ReporterInteface):
@@ -44,7 +44,7 @@ class StateReporter(ReporterInteface):
 
     def gather(
         self,
-        sys: MDSystem,
+        sys: System,
         current_step: int,
     ) -> None:
 
@@ -94,7 +94,7 @@ class XyzReporter(ReporterInteface):
         self.interval = interval
         self.flush_immediately = flush_immediately
 
-    def gather(self, sys: MDSystem, current_step: int) -> None:
+    def gather(self, sys: System, current_step: int) -> None:
 
         if current_step % self.interval != 0:
             return 

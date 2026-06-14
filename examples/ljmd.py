@@ -11,25 +11,15 @@ from amardus import (
     Unit,
     Parameters,
     Atoms,
-    MDSystem,
-    MDSimulation,
+    System,
+    Simulation,
     LennardJones,
     ForceField,
+    VelocityVerlet,
 )
 
 
 def run_simulation() -> None:
-
-    print(r"""
-      _                            _
-     / \   _ __ ___   __ _ _ __ __| |_   _ ___
-    / _ \ | '_ ` _ \ / _` | '__/ _` | | | / __|
-   / ___ \| | | | | | (_| | | | (_| | |_| \__ \
-  /_/   \_\_| |_| |_|\__,_|_|  \__,_|\__,_|___/
-
-           Molecular Dynamics Engine
--------------------------------------------------
-""")
 
     unit = Unit()
     time_step = 0.001 * unit.picoseconds
@@ -64,15 +54,21 @@ def run_simulation() -> None:
             sigma=[3.405],
         )
     )
-    system = MDSystem.create(atoms, params, forcefield)
+    system = System.create(atoms, params, forcefield)
     print("System: Lennard-Jones particles")
     print(f"Number of atoms: {len(atoms)}")
 
-    simulation = MDSimulation(system)
-    simulation.reporters.append(StateReporter(interval=100, unit=unit))
-    # simulation.reporters.append(XyzReporter("out.xyz", atom_types_map, interval=1000, unit=unit))
+    integration = VelocityVerlet(
+        # thermostat=True,
+        # barostat=True,
+    )
+    simulation = Simulation(
+        system,
+        integration,
+        reporters=[StateReporter(interval=100, unit=unit)],
+    )
     simulation.step(1_001)
-    # simulation.step(30_000)
+    # simulation.reporters.append(XyzReporter("out.xyz", atom_types_map, interval=1000, unit=unit))
     # simulation.step(30_000)
 
 

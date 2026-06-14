@@ -34,3 +34,7 @@ class Parameters(NamedTuple):
     ewald_kmax: int
     boltzman: float
     coulomb: float
+
+
+def get_default_unit() -> Unit:
+    return Unit()

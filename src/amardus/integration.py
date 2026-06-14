@@ -1,12 +1,41 @@
+from dataclasses import dataclass
 import math
+from typing import Protocol
 import numpy as np
 from numba import njit
-from amardus.system import MDSystem, get_temperature, get_pressure
+from amardus.system import System, get_temperature, get_pressure
 from amardus.parameters import FLOAT
 
 
+class IntegrationInterface(Protocol):
+    
+    def pre_force_udpate(self, sys: System) -> None:
+        ...
+
+    def post_force_update(self, sys: System) -> None:
+        ...
+
+
+@dataclass
+class VelocityVerlet(IntegrationInterface):
+
+    thermostat: bool = False
+    barostat: bool = False
+
+    def pre_force_udpate(self, sys: System) -> None:
+        verlet_integration_position(sys)
+        
+    def post_force_update(self, sys: System) -> None:
+        verlet_integration_velocity(sys)
+
+        if self.thermostat:
+            brendsen_thermostat(sys)
+        if self.barostat:
+            brendsen_barostat(sys)
+
+
 @njit
-def verlet_integration_position(sys: MDSystem) -> None:
+def verlet_integration_position(sys: System) -> None:
     atoms, params = sys.atoms, sys.params
     dt = params.time_step
     box = atoms.box
@@ -26,38 +55,36 @@ def verlet_integration_position(sys: MDSystem) -> None:
 
 
 @njit
-def verlet_integration_velocity(sys: MDSystem) -> None:
+def verlet_integration_velocity(sys: System) -> None:
     atoms, params = sys.atoms, sys.params
     dt = params.time_step
     m, v, f = atoms.masses.reshape(-1, 1), atoms.velocities, atoms.forces
     v += FLOAT(0.5) * dt / m * f
 
 @njit
-def thermostat(sys: MDSystem) -> None:
+def brendsen_thermostat(sys: System) -> None:
     atoms, params = sys.atoms, sys.params
-    t0 = params.temperature
     dt = params.time_step
     tau = params.thermostat_coupling_time
     v = atoms.velocities
+    t0 = params.temperature 
 
     t = get_temperature(sys)
     scale = FLOAT(math.sqrt(FLOAT(1.0) + (dt / tau) * (t0 / t - FLOAT(1.0))))
     v *= scale
 
 @njit
-def barostat(sys: MDSystem) -> None:
+def brendsen_barostat(sys: System) -> None:
     atoms, params = sys.atoms, sys.params
-    p0 = params.pressure
     dt = params.time_step
     tau = params.barostat_coupling_time
     beta = params.compressibility
     pos = atoms.positions
     box = atoms.box
+    p0 = params.pressure
 
     p = get_pressure(sys)
     scale = (1.0 - beta * dt / tau * (p0 - p)) ** (1.0 / 3.0)
     pos *= scale
     box *= scale
-
-
 

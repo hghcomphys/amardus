@@ -3,13 +3,13 @@ import math
 import numpy as np
 from numba import njit
 from typing import NamedTuple
-from amardus.system import MDSystem
+from amardus.system import System
 from amardus.neighbors import apply_pbc
 from amardus.parameters import FLOAT, Array
 
 
 @njit
-def compute_forces(sys: MDSystem) -> None:
+def compute_forces(sys: System) -> None:
     sys.atoms.forces[:] = FLOAT(0.0)
     sys.energy[0] = FLOAT(0.0)
     sys.virial[0] = FLOAT(0.0)
@@ -19,7 +19,7 @@ def compute_forces(sys: MDSystem) -> None:
 
 
 @njit
-def compute_coul_forces(sys: MDSystem) -> None:
+def compute_coul_forces(sys: System) -> None:
     compute_ewald_real_forces(sys)
     compute_ewald_reciprocal_forces(sys)
     compute_ewald_self_energy(sys)
@@ -53,7 +53,7 @@ class ForceField(NamedTuple):
 
 
 @njit
-def compute_lj_forces(sys: MDSystem) -> None:
+def compute_lj_forces(sys: System) -> None:
     box = sys.atoms.box
     energy = sys.energy
     virial = sys.virial
@@ -110,7 +110,7 @@ def compute_lj_forces(sys: MDSystem) -> None:
 
 
 @njit
-def compute_ewald_real_forces(sys: MDSystem) -> None:
+def compute_ewald_real_forces(sys: System) -> None:
     atoms = sys.atoms
     params = sys.params
     neighbors = sys.neighbors
@@ -162,7 +162,7 @@ def compute_ewald_real_forces(sys: MDSystem) -> None:
 
 
 @njit
-def compute_ewald_reciprocal_forces(sys: MDSystem) -> None:
+def compute_ewald_reciprocal_forces(sys: System) -> None:
 
     atoms, params = sys.atoms, sys.params
     energy = sys.energy
@@ -229,7 +229,7 @@ def compute_ewald_reciprocal_forces(sys: MDSystem) -> None:
 
 
 @njit
-def compute_ewald_self_energy(sys: MDSystem) -> None:
+def compute_ewald_self_energy(sys: System) -> None:
     atoms, params = sys.atoms, sys.params
     energy = sys.energy
     charge = atoms.charges

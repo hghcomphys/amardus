@@ -10,7 +10,7 @@ from amardus.parameters import Parameters, Array, FLOAT
 ForceField: TypeAlias = tuple
 
 
-class MDSystem(NamedTuple):
+class System(NamedTuple):
     atoms: Atoms
     params: Parameters
     cells: CellList
@@ -25,7 +25,7 @@ class MDSystem(NamedTuple):
         atoms: Atoms,
         params: Parameters,
         forcefield: ForceField,
-    ) -> MDSystem:
+    ) -> System:
         num_atoms = len(atoms.positions)
 
         return cls(
@@ -40,20 +40,20 @@ class MDSystem(NamedTuple):
 
 
 @njit
-def get_kinetic_energy(sys: MDSystem) -> FLOAT:
+def get_kinetic_energy(sys: System) -> FLOAT:
     m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
     return FLOAT(0.5) * np.sum(m * v * v)
 
 
 @njit
-def get_temperature(sys: MDSystem) -> FLOAT:
+def get_temperature(sys: System) -> FLOAT:
     m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
     KB = sys.params.boltzman
     return np.mean(m * v * v) / KB
 
 
 @njit
-def get_pressure(sys: MDSystem) -> float:
+def get_pressure(sys: System) -> float:
     m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
     vol = np.linalg.det(sys.atoms.box)
     virial = sys.virial
