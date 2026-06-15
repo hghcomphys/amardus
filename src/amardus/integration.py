@@ -1,6 +1,5 @@
-from dataclasses import dataclass
 import math
-from typing import Protocol
+from typing import Optional, Protocol
 import numpy as np
 from numba import njit
 from amardus.system import System, get_temperature, get_pressure
@@ -16,26 +15,30 @@ class IntegrationInterface(Protocol):
         ...
 
 
-@dataclass
-class VelocityVerlet(IntegrationInterface):
+class VerletIntegrator(IntegrationInterface):
 
-    thermostat: bool = False
-    barostat: bool = False
+    def __init__(
+        self, 
+        temperature: Optional[float] = None, 
+        pressure: Optional[float] = None,
+    ):
+        self.temperature = temperature
+        self.pressure = pressure
 
     def pre_force_udpate(self, sys: System) -> None:
-        verlet_integration_position(sys)
+        verlet_integrator_position(sys)
         
     def post_force_update(self, sys: System) -> None:
-        verlet_integration_velocity(sys)
+        verlet_integrator_velocity(sys)
 
-        if self.thermostat:
-            brendsen_thermostat(sys)
-        if self.barostat:
-            brendsen_barostat(sys)
+        if self.temperature is not None:
+            brendsen_thermostat(sys, self.temperature)
+        if self.pressure:
+            brendsen_barostat(sys, self.pressure)
 
 
 @njit
-def verlet_integration_position(sys: System) -> None:
+def verlet_integrator_position(sys: System) -> None:
     atoms, params = sys.atoms, sys.params
     dt = params.time_step
     box = atoms.box
@@ -53,35 +56,34 @@ def verlet_integration_position(sys: System) -> None:
             )
             v[n, dim] += FLOAT(0.5) * dt / m[n] * f[n, dim]
 
-
 @njit
-def verlet_integration_velocity(sys: System) -> None:
+def verlet_integrator_velocity(sys: System) -> None:
     atoms, params = sys.atoms, sys.params
     dt = params.time_step
     m, v, f = atoms.masses.reshape(-1, 1), atoms.velocities, atoms.forces
     v += FLOAT(0.5) * dt / m * f
 
 @njit
-def brendsen_thermostat(sys: System) -> None:
+def brendsen_thermostat(sys: System, temperature: float) -> None:
     atoms, params = sys.atoms, sys.params
     dt = params.time_step
     tau = params.thermostat_coupling_time
     v = atoms.velocities
-    t0 = params.temperature 
+    t0 = temperature 
 
     t = get_temperature(sys)
     scale = FLOAT(math.sqrt(FLOAT(1.0) + (dt / tau) * (t0 / t - FLOAT(1.0))))
     v *= scale
 
 @njit
-def brendsen_barostat(sys: System) -> None:
+def brendsen_barostat(sys: System, pressure: float) -> None:
     atoms, params = sys.atoms, sys.params
     dt = params.time_step
     tau = params.barostat_coupling_time
     beta = params.compressibility
     pos = atoms.positions
     box = atoms.box
-    p0 = params.pressure
+    p0 = pressure
 
     p = get_pressure(sys)
     scale = (1.0 - beta * dt / tau * (p0 - p)) ** (1.0 / 3.0)

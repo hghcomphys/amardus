@@ -15,18 +15,18 @@ from amardus import (
     Simulation,
     LennardJones,
     ForceField,
-    VelocityVerlet,
+    VerletIntegrator,
 )
 
 
 def run_simulation() -> None:
 
     unit = Unit()
-    time_step = 0.001 * unit.picoseconds
+    time_step = 0.002 * unit.picoseconds
     cutoff = 9.0 * unit.angstrom
     params = Parameters(
         time_step=time_step,
-        temperature=100.0 * unit.kelvin,
+        temperature=300.0 * unit.kelvin,
         pressure=1.0 * unit.bar,
         cutoff_radius=cutoff * unit.angstrom,
         skin_radius=1.0 * unit.angstrom,
@@ -39,37 +39,49 @@ def run_simulation() -> None:
         boltzman=unit.boltzman,
         coulomb=unit.coulomb,
     )
-    atoms_ase: AseAtoms = read_ase("argon.xyz")
+    atoms_ase: AseAtoms = read_ase("argon-neon.xyz")
     MaxwellBoltzmannDistribution(
         atoms_ase,
-        temperature_K=params.temperature,
+        temperature_K=params.temperature / unit.kelvin,
         rng=np.random.default_rng(1234),
     )
     Stationary(atoms_ase)
-    atom_types_map = {"Ar": 0}
+    # atom_types_map = {"Ar": 0}
+    atom_types_map = {"Ar": 0, "Ne": 1}
     atoms = Atoms.from_ase(atoms_ase, atom_types_map)
     forcefield = ForceField(
         LennardJones.from_atom_types(
-            epsilon=[1.032e-2],
-            sigma=[3.405],
+            # epsilon=[e * unit.electronvolt for e in [1.032e-2]],
+            # sigma=[s * unit.angstrom for s in [3.405]],
+            epsilon=[e * unit.electronvolt for e in [0.01032, 0.00307]],
+            sigma=[s * unit.angstrom for s in [3.405, 2.789]],
         )
     )
     system = System.create(atoms, params, forcefield)
     print("System: Lennard-Jones particles")
     print(f"Number of atoms: {len(atoms)}")
+    # print(system.atoms.atom_types)
+        
+    state = StateReporter(interval=100, unit=unit)
+    xyz  = XyzReporter("out.xyz", atom_types_map, interval=1000, unit=unit)
 
-    integration = VelocityVerlet(
-        # thermostat=True,
-        # barostat=True,
+    # Heating up system
+    # verlet = VerletIntegrator(temperature=300.0 * unit.kelvin)
+    # md = Simulation(system, verlet, reporters=[state, xyz])
+    # md.step(10_000)
+
+    integrator = VerletIntegrator(
+        temperature=params.temperature,
+        # pressure=params.pressure,
     )
     simulation = Simulation(
         system,
-        integration,
-        reporters=[StateReporter(interval=100, unit=unit)],
+        integrator,
+        reporters=[state, xyz],
     )
     simulation.step(1_001)
-    # simulation.reporters.append(XyzReporter("out.xyz", atom_types_map, interval=1000, unit=unit))
-    # simulation.step(30_000)
+    # simulation.reporters.append(xyz)
+    simulation.step(30_000)
 
 
 if __name__ == "__main__":
