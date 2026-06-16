@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import math
-from typing import Optional, Protocol
+from typing import Protocol
 import numpy as np
 from numba import njit
 from amardus.system import System, get_temperature, get_pressure
@@ -9,9 +9,9 @@ from amardus.parameters import FLOAT
 
 class IntegrationInterface(Protocol):
 
-    def pre_force_udpate(self, sys: System) -> None: ...
+    def pre_forces_udpate(self, sys: System) -> None: ...
 
-    def post_force_update(self, sys: System) -> None: ...
+    def post_forces_update(self, sys: System) -> None: ...
 
 
 @dataclass
@@ -26,10 +26,10 @@ class VerletIntegrator(IntegrationInterface):
     #     self.temperature = temperature
     #     self.pressure = pressure
 
-    def pre_force_udpate(self, sys: System) -> None:
+    def pre_forces_udpate(self, sys: System) -> None:
         verlet_integrator_position(sys, self.time_step)
 
-    def post_force_update(self, sys: System) -> None:
+    def post_forces_update(self, sys: System) -> None:
         verlet_integrator_velocity(sys, self.time_step)
 
         # if self.temperature is not None:
@@ -37,13 +37,12 @@ class VerletIntegrator(IntegrationInterface):
         # if self.pressure:
         #     brendsen_barostat(sys, self.pressure)
 
-
 @njit
 def verlet_integrator_position(sys: System, time_step: float) -> None:
     atoms = sys.atoms
     dt = time_step
     box = atoms.box
-    num_atoms = len(atoms)
+    num_atoms = atoms.positions.shape[0] 
     m, r, v, f = atoms.masses, atoms.positions, atoms.velocities, atoms.forces
     length = box[0, 0], box[1, 1], box[2, 2]
 

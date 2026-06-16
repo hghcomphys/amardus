@@ -14,7 +14,7 @@ PathLike = Path | str
 
 
 class ReporterInteface(Protocol):
-    def gather(self, sys: System, current_step: int) -> None: ...
+    def collect(self, sys: System, current_step: int) -> None: ...
 
 
 class StateReporter(ReporterInteface):
@@ -41,7 +41,7 @@ class StateReporter(ReporterInteface):
             f" {'Dens':10}"
         )
 
-    def gather(
+    def collect(
         self,
         sys: System,
         current_step: int,
@@ -92,13 +92,13 @@ class XyzReporter(ReporterInteface):
         self.interval = interval
         self.flush_immediately = flush_immediately
 
-    def gather(self, sys: System, current_step: int) -> None:
+    def collect(self, sys: System, current_step: int) -> None:
 
         if current_step % self.interval != 0:
             return 
         
         pos = sys.atoms.positions
-        num_atoms = len(sys.atoms)
+        num_atoms = pos.shape[0] 
         unit = self.unit
 
         self.file.write(f"{num_atoms}\n\n")

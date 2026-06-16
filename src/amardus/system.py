@@ -30,8 +30,8 @@ class System(NamedTuple):
             atoms=atoms,
             cells = CellList.create(atoms.box, num_atoms, cell_length),
             neighbors=NeighborList.create(num_atoms, neighbor_max_atoms),
-            energy=np.empty(1, dtype=FLOAT),
-            virial=np.empty(1, dtype=FLOAT),
+            energy=np.zeros(1, dtype=FLOAT),
+            virial=np.zeros(1, dtype=FLOAT),
         )
 
 

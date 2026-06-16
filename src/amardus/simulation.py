@@ -30,10 +30,10 @@ class Simulation:
 
             self.current_step += 1
             for reporter in self.reporters:
-               reporter.gather(sys, self.current_step)
+               reporter.collect(sys, self.current_step)
 
             # Next time step (update r, v, and F)
-            self.integration.pre_force_udpate(sys)
+            self.integration.pre_forces_udpate(sys)
             
             if check_if_neighbor_need_update(sys, self.skin_radius):
                 # cells = initialize_cells(params, atoms.box)
@@ -41,5 +41,5 @@ class Simulation:
                 num_neighbor_updates += 1
 
             self.forcefield.compute_forces(sys)
-            self.integration.post_force_update(sys)
+            self.integration.post_forces_update(sys)
 

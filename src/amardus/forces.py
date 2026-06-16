@@ -46,7 +46,7 @@ class LennardJonesParams(NamedTuple):
     sigma: Array
 
     @classmethod
-    def from_atom_types(
+    def from_list(
         cls,
         epsilon: list[float],
         sigma: list[float],
@@ -76,7 +76,7 @@ def compute_lj_forces(
     atom_types = sys.atoms.atom_types
     cutoff2 = cutoff_radius**2
     length = box[0, 0], box[1, 1], box[2, 2]
-    num_atoms = len(pos)
+    num_atoms = pos.shape[0] 
 
     epsilon, sigma = params.epsilon, params.sigma
     sigma3 = sigma * sigma * sigma
@@ -136,7 +136,7 @@ def compute_ewald_real_forces(
     charge = atoms.charges
     cutoff2 = cutoff_radius**2
     length = box[0, 0], box[1, 1], box[2, 2]
-    num_atoms = len(pos)
+    num_atoms = pos.shape[0] 
 
     for ni in range(num_atoms):
         for j in range(neighbors.num_neighbors_per_atom[ni]):
@@ -189,7 +189,7 @@ def compute_ewald_reciprocal_forces(
     box = atoms.box
     vol = np.linalg.det(box)
     length = box[0, 0], box[1, 1], box[2, 2]
-    num_atoms = len(pos)
+    num_atoms = pos.shape[0] 
 
     energy_sum = FLOAT(0)
     for nx in range(-kmax, kmax + 1):
