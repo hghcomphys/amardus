@@ -9,6 +9,9 @@ IndexArray: TypeAlias = NDArray[INDEX]
 ORDER: Literal["C", "F"] = "C"
 
 
+global default_unit
+
+
 class Unit(NamedTuple):  
     boltzman = 8.617343e-5   # eV/K
     coulomb = 14.399645478   # eV/(e^2 * A)
@@ -36,5 +39,12 @@ class Parameters(NamedTuple):
     coulomb: float
 
 
+default_unit = Unit()
+
+def set_default_unit(unit: Unit) -> None:
+    global default_unit
+    default_unit = unit
+
 def get_default_unit() -> Unit:
-    return Unit()
+    global default_unit
+    return default_unit

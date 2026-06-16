@@ -2,58 +2,71 @@ from __future__ import annotations
 import math
 import numpy as np
 from numba import njit
-from typing import NamedTuple
+from typing import NamedTuple, Protocol
 from amardus.system import System
 from amardus.neighbors import apply_pbc
-from amardus.parameters import FLOAT, Array
+from amardus.parameters import FLOAT, Array, get_default_unit
+from dataclasses import dataclass
+
+KE = get_default_unit().coulomb
+
+# @njit
+# def compute_forces(sys: System) -> None:
+#     sys.atoms.forces[:] = FLOAT(0.0)
+#     sys.energy[0] = FLOAT(0.0)
+#     sys.virial[0] = FLOAT(0.0)
+#
+#     compute_lj_forces(sys)
+#     # compute_coul_forces(sys)
 
 
-@njit
-def compute_forces(sys: System) -> None:
-    sys.atoms.forces[:] = FLOAT(0.0)
-    sys.energy[0] = FLOAT(0.0)
-    sys.virial[0] = FLOAT(0.0)
-
-    compute_lj_forces(sys)
-    # compute_coul_forces(sys)
+# @njit
+# def compute_coul_forces(sys: System) -> None:
+#     compute_ewald_real_forces(sys)
+#     compute_ewald_reciprocal_forces(sys)
+#     compute_ewald_self_energy(sys)
 
 
-@njit
-def compute_coul_forces(sys: System) -> None:
-    compute_ewald_real_forces(sys)
-    compute_ewald_reciprocal_forces(sys)
-    compute_ewald_self_energy(sys)
+class ForceFieldInterface(Protocol):
+
+    def compute_forces(self, sys: System) -> None: ...
 
 
-class LennardJones(NamedTuple):
+@dataclass
+class LennardJonesForceField(ForceFieldInterface):
+    params: LennardJonesParams
+    cutoff_radius: float
+
+    def compute_forces(self, sys: System) -> None:
+        compute_lj_forces(sys, self.params, self.cutoff_radius)
+
+
+class LennardJonesParams(NamedTuple):
     epsilon: Array
     sigma: Array
 
     @classmethod
     def from_atom_types(
-            cls, 
-            epsilon: list[float], 
-            sigma: list[float],
-    ) -> LennardJones:
+        cls,
+        epsilon: list[float],
+        sigma: list[float],
+    ) -> LennardJonesParams:
 
         epsilon = np.array(epsilon, dtype=FLOAT)
         sigma = np.array(sigma, dtype=FLOAT)
-        
+
         epsilon_matrix = np.sqrt(epsilon[:, None] * epsilon[None, :])
         sigma_matrix = 0.5 * (sigma[:, None] + sigma[None, :])
 
         return cls(epsilon=epsilon_matrix, sigma=sigma_matrix)
 
 
-
-
-
-class ForceField(NamedTuple):
-    lennard_jones: LennardJones
-
-
 @njit
-def compute_lj_forces(sys: System) -> None:
+def compute_lj_forces(
+    sys: System,
+    params: LennardJonesParams,
+    cutoff_radius: float,
+) -> None:
     box = sys.atoms.box
     energy = sys.energy
     virial = sys.virial
@@ -61,12 +74,11 @@ def compute_lj_forces(sys: System) -> None:
     forces = sys.atoms.forces
     pos = sys.atoms.positions
     atom_types = sys.atoms.atom_types
-    cutoff2 = sys.params.cutoff_radius**2
-    lj_params = sys.forcefield.lennard_jones
+    cutoff2 = cutoff_radius**2
     length = box[0, 0], box[1, 1], box[2, 2]
     num_atoms = len(pos)
 
-    epsilon, sigma = lj_params.epsilon, lj_params.sigma
+    epsilon, sigma = params.epsilon, params.sigma
     sigma3 = sigma * sigma * sigma
     sigma6 = sigma3 * sigma3
     sigma12 = sigma6 * sigma6
@@ -76,7 +88,7 @@ def compute_lj_forces(sys: System) -> None:
     e4s12 = FLOAT(4.0) * epsilon * sigma12
 
     for ni in range(num_atoms):
-        ai = atom_types[ni] 
+        ai = atom_types[ni]
 
         for j in range(neighbors.num_neighbors_per_atom[ni]):
             nj = neighbors.neighbor_index[ni, j]
@@ -110,20 +122,21 @@ def compute_lj_forces(sys: System) -> None:
 
 
 @njit
-def compute_ewald_real_forces(sys: System) -> None:
+def compute_ewald_real_forces(
+    sys: System,
+    cutoff_radius: float,
+    alpha: float,
+) -> None:
     atoms = sys.atoms
-    params = sys.params
     neighbors = sys.neighbors
     energy, virial = sys.energy, sys.virial
     box = atoms.box
     forces = atoms.forces
     pos = atoms.positions
     charge = atoms.charges
-    cutoff2 = params.cutoff_radius**2
+    cutoff2 = cutoff_radius**2
     length = box[0, 0], box[1, 1], box[2, 2]
-    alpha = params.ewald_alpha
     num_atoms = len(pos)
-    KE = params.coulomb
 
     for ni in range(num_atoms):
         for j in range(neighbors.num_neighbors_per_atom[ni]):
@@ -162,9 +175,13 @@ def compute_ewald_real_forces(sys: System) -> None:
 
 
 @njit
-def compute_ewald_reciprocal_forces(sys: System) -> None:
+def compute_ewald_reciprocal_forces(
+    sys: System,
+    alpha: float,
+    kmax: int,
+) -> None:
 
-    atoms, params = sys.atoms, sys.params
+    atoms = sys.atoms
     energy = sys.energy
     pos = atoms.positions
     charge = atoms.charges
@@ -172,8 +189,6 @@ def compute_ewald_reciprocal_forces(sys: System) -> None:
     box = atoms.box
     vol = np.linalg.det(box)
     length = box[0, 0], box[1, 1], box[2, 2]
-    kmax = params.ewald_kmax
-    alpha = params.ewald_alpha
     num_atoms = len(pos)
 
     energy_sum = FLOAT(0)
@@ -224,14 +239,12 @@ def compute_ewald_reciprocal_forces(sys: System) -> None:
                     )
                     forces[ni] += force_factor * kvec
 
-
         energy[0] += 0.5 * energy_sum
 
 
 @njit
-def compute_ewald_self_energy(sys: System) -> None:
-    atoms, params = sys.atoms, sys.params
+def compute_ewald_self_energy(sys: System, alpha: float) -> None:
+    atoms = sys.atoms
     energy = sys.energy
     charge = atoms.charges
-    alpha = params.ewald_alpha
     energy[0] += -alpha / math.sqrt(math.pi) * np.sum(charge**2)

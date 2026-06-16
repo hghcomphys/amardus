@@ -4,30 +4,26 @@ from amardus.neighbors import (
     check_if_neighbor_need_update,
 )
 from amardus.system import System
-from amardus.forces import compute_forces
+from amardus.forces import ForceFieldInterface
 from amardus.io import ReporterInteface
-from amardus.integration import (
-        IntegrationInterface, 
-        brendsen_barostat, 
-        brendsen_thermostat,
-)
+from amardus.integration import IntegrationInterface
 
 
 @dataclass
 class Simulation:
     system: System
     integration: IntegrationInterface
-    reporters: list[ReporterInteface] = field(default_factory=list)
+    forcefield: ForceFieldInterface
+    cutoff_radius: float
+    skin_radius: float
     current_step: int = 0
-
-    def step(
-        self,
-        number: int = 1,
-    ) -> None:
+    reporters: list[ReporterInteface] = field(default_factory=list)
+    
+    def step(self, number: int = 1) -> None:
 
         sys = self.system
-        update_neighbors(sys)
-        compute_forces(sys)
+        update_neighbors(sys, self.cutoff_radius, self.skin_radius)
+        self.forcefield.compute_forces(sys)
         num_neighbor_updates = 1
 
         for _ in range(number):
@@ -39,11 +35,11 @@ class Simulation:
             # Next time step (update r, v, and F)
             self.integration.pre_force_udpate(sys)
             
-            if check_if_neighbor_need_update(sys):
+            if check_if_neighbor_need_update(sys, self.skin_radius):
                 # cells = initialize_cells(params, atoms.box)
-                update_neighbors(sys)
+                update_neighbors(sys, self.cutoff_radius, self.skin_radius)
                 num_neighbor_updates += 1
 
-            compute_forces(sys)
+            self.forcefield.compute_forces(sys)
             self.integration.post_force_update(sys)
 

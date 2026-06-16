@@ -2,7 +2,7 @@ import math
 import numpy as np
 from pathlib import Path
 from typing import Protocol
-from amardus.parameters import Unit
+from amardus.parameters import get_default_unit
 from amardus.system import (
     System,
     get_kinetic_energy,
@@ -21,11 +21,10 @@ class StateReporter(ReporterInteface):
 
     def __init__(
         self,
-        unit: Unit,
         interval: int = 1,
         show_header: bool = True,
     ) -> None:
-        self.unit = unit
+        self.unit = get_default_unit()
         self.interval = interval
         self.show_header: bool = show_header
         self.header: str = (
@@ -84,13 +83,12 @@ class XyzReporter(ReporterInteface):
         self, 
         filename: PathLike,
         atom_types_map: dict[str, int],
-        unit: Unit,
         interval: int = 1000,
         flush_immediately: bool = False,
     ) -> None:
+        self.unit = get_default_unit()
         self.file = open(str(filename), "w")
         self.atoms_symbol_map = {v: k for k, v in atom_types_map.items()}
-        self.unit = unit
         self.interval = interval
         self.flush_immediately = flush_immediately
 

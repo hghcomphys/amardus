@@ -5,7 +5,7 @@ from typing import NamedTuple, Protocol
 from numpy.typing import NDArray
 from numba import njit
 from amardus.atoms import Atoms
-from amardus.parameters import Parameters, Array, FLOAT
+from amardus.parameters import Array, FLOAT
 
 
 class CellList(NamedTuple):
@@ -16,13 +16,12 @@ class CellList(NamedTuple):
     @classmethod
     def create(
         cls,
-        params: Parameters,
         box: Array,
         num_atoms: int,
+        cell_length: float,
         max_atoms_factor: float = 3.0,
     ) -> CellList:
 
-        cell_length = params.cutoff_radius
         length = box[0, 0], box[1, 1], box[2, 2]
 
         cell_sizes = (
@@ -59,12 +58,12 @@ class NeighborList(NamedTuple):
     @classmethod
     def create(
         cls,
-        params: Parameters,
         num_atoms: int,
+        neighbor_max_atoms: int
     ) -> NeighborList:
 
         neighbor_index = np.empty(
-            shape=(num_atoms, params.neighbor_max_atoms),
+            shape=(num_atoms, neighbor_max_atoms),
             dtype=np.int32,
         )
         neighbor_num_atoms = np.empty(
@@ -77,12 +76,12 @@ class NeighborList(NamedTuple):
         )
 
 
-@njit
+@njit(inline="always")
 def index3d(ic: tuple[int, int, int], nc: tuple[int, int, int]) -> int:
     return ic[0] + nc[0] * (ic[1] + nc[1] * ic[2])
 
 
-@njit
+@njit(inline="always")
 def apply_pbc(
     rij: FLOAT,
     length: FLOAT,
@@ -100,9 +99,6 @@ class SystemInterface(Protocol):
     def atoms(self) -> Atoms: ...
 
     @property
-    def params(self) -> Parameters: ...
-
-    @property
     def cells(self) -> CellList: ...
     
     @property
@@ -110,14 +106,16 @@ class SystemInterface(Protocol):
 
 
 @njit
-def update_neighbors(sys: SystemInterface) -> None:
-
-    atoms, params = sys.atoms, sys.params
+def update_neighbors(
+        sys: SystemInterface, 
+        cutoff_radius: float, 
+        skin_radius: float,
+) -> None:
     cells, neighbors = sys.cells, sys.neighbors
-    neighbor_cutoff2 = (params.cutoff_radius + params.skin_radius) ** 2
-    box, pos = atoms.box, atoms.positions
+    neighbor_cutoff2 = (cutoff_radius + skin_radius) ** 2
+    box, pos = sys.atoms.box, sys.atoms.positions
     length = box[0, 0], box[1, 1], box[2, 2]
-    num_atoms = len(pos)
+    num_atoms = len(sys.atoms)
     nc = cells.sizes
 
     # Cell list
@@ -191,16 +189,16 @@ def update_neighbors(sys: SystemInterface) -> None:
 
     # Update old position
     for n in range(num_atoms):
-        atoms.positions_old[n, 0] = pos[n, 0]
-        atoms.positions_old[n, 1] = pos[n, 1]
-        atoms.positions_old[n, 2] = pos[n, 2]
+        sys.atoms.positions_old[n, 0] = pos[n, 0]
+        sys.atoms.positions_old[n, 1] = pos[n, 1]
+        sys.atoms.positions_old[n, 2] = pos[n, 2]
 
 
 @njit
-def check_if_neighbor_need_update(sys: SystemInterface) -> bool:
-    atoms, params = sys.atoms, sys.params
-    num_atoms = len(atoms.positions)
-    displacement_cutoff2 = 0.25 * params.skin_radius **2
+def check_if_neighbor_need_update(sys: SystemInterface, skin_radius: float) -> bool:
+    atoms= sys.atoms
+    num_atoms = len(atoms)
+    displacement_cutoff2 = 0.25 * skin_radius **2
     r2 = FLOAT(0.0)
     for n in range(num_atoms):
         for dim in range(3):

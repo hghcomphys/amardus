@@ -4,38 +4,34 @@ from numba import njit
 from typing import NamedTuple, TypeAlias
 from amardus.atoms import Atoms
 from amardus.neighbors import CellList, NeighborList
-from amardus.parameters import Parameters, Array, FLOAT
+from amardus.parameters import get_default_unit, Array, FLOAT
 
 
-ForceField: TypeAlias = tuple
+KB = get_default_unit().boltzman
 
 
 class System(NamedTuple):
     atoms: Atoms
-    params: Parameters
     cells: CellList
     neighbors: NeighborList
     energy: Array
     virial: Array
-    forcefield: ForceField
 
     @classmethod
     def create(
         cls,
         atoms: Atoms,
-        params: Parameters,
-        forcefield: ForceField,
+        cell_length: float,
+        neighbor_max_atoms: int,
     ) -> System:
-        num_atoms = len(atoms.positions)
+        num_atoms = len(atoms)
 
         return cls(
             atoms=atoms,
-            params=params,
-            cells=CellList.create(params, atoms.box, num_atoms),
-            neighbors=NeighborList.create(params, num_atoms),
+            cells = CellList.create(atoms.box, num_atoms, cell_length),
+            neighbors=NeighborList.create(num_atoms, neighbor_max_atoms),
             energy=np.empty(1, dtype=FLOAT),
             virial=np.empty(1, dtype=FLOAT),
-            forcefield=forcefield,
         )
 
 
@@ -48,7 +44,6 @@ def get_kinetic_energy(sys: System) -> FLOAT:
 @njit
 def get_temperature(sys: System) -> FLOAT:
     m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
-    KB = sys.params.boltzman
     return np.mean(m * v * v) / KB
 
 
