@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 from typing import Protocol
 import numpy as np
@@ -14,9 +14,15 @@ class IntegrationInterface(Protocol):
     def post_forces_update(self, sys: System) -> None: ...
 
 
+class ThermoBaroInterface(Protocol):
+
+    def apply(self, sys: System) -> None: ...
+
+
 @dataclass
 class VerletIntegrator(IntegrationInterface):
     time_step: float
+    system_coupling: list[ThermoBaroInterface] = field(default_factory=list)
 
     def pre_forces_udpate(self, sys: System) -> None:
         verlet_integrator_position(sys, self.time_step)
@@ -24,17 +30,48 @@ class VerletIntegrator(IntegrationInterface):
     def post_forces_update(self, sys: System) -> None:
         verlet_integrator_velocity(sys, self.time_step)
 
-        # if self.temperature is not None:
-        #     brendsen_thermostat(sys, self.temperature)
-        # if self.pressure:
-        #     brendsen_barostat(sys, self.pressure)
+        for coupling in self.system_coupling:
+            coupling.apply(sys)
+
+
+@dataclass
+class BrendsenThermostat:
+    target_temperature: float
+    coupling_time: float
+    time_step: float
+
+    def apply(self, sys: System) -> None:
+        brendsen_thermostat(
+            sys,
+            self.target_temperature,
+            self.coupling_time,
+            self.time_step,
+        )
+
+
+@dataclass
+class BrendsenBarostat:
+    target_pressure: float
+    coupling_time: float
+    compressibility: float
+    time_step: float
+
+    def apply(self, sys: System) -> None:
+        brendsen_barostat(
+            sys,
+            self.target_pressure,
+            self.coupling_time,
+            self.compressibility,
+            self.time_step,
+        )
+
 
 @njit
 def verlet_integrator_position(sys: System, time_step: float) -> None:
     atoms = sys.atoms
     dt = time_step
     box = atoms.box
-    num_atoms = atoms.positions.shape[0] 
+    num_atoms = atoms.positions.shape[0]
     m, r, v, f = atoms.masses, atoms.positions, atoms.velocities, atoms.forces
     length = box[0, 0], box[1, 1], box[2, 2]
 
@@ -61,8 +98,8 @@ def verlet_integrator_velocity(sys: System, time_step: float) -> None:
 def brendsen_thermostat(
     sys: System,
     temperature: float,
-    time_step: float,
     coupling_time: float,
+    time_step: float,
 ) -> None:
     atoms = sys.atoms
     dt = time_step
@@ -79,9 +116,9 @@ def brendsen_thermostat(
 def brendsen_barostat(
     sys: System,
     pressure: float,
-    time_step: float,
     coupling_time: float,
     compressibility: float,
+    time_step: float,
 ) -> None:
     atoms = sys.atoms
     dt = time_step

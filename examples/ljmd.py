@@ -14,6 +14,7 @@ from amardus import (
 )
 from amardus.parameters import get_default_unit
 from amardus.forces import LennardJonesForceField, LennardJonesParams
+from amardus.integration import BrendsenThermostat, BrendsenBarostat 
 
 
 def main() -> None:
@@ -21,11 +22,11 @@ def main() -> None:
     unit = get_default_unit()
     time_step = 0.001 * unit.picoseconds
     cutoff = 9.0 * unit.angstrom
-    temperature=300.0 * unit.kelvin
-    # pressure=1.0 * unit.bar
-    # thermostat_coupling_time=10 * time_step
-    # barostat_coupling_time=10 * time_step
-    # compressibility=1.0
+    temperature=100.0 * unit.kelvin
+    pressure=1.0 * unit.bar
+    thermostat_coupling_time=10 * time_step
+    barostat_coupling_time=10 * time_step
+    compressibility=1.0
     # ewald_alpha=3.5 / cutoff
     # ewald_kmax=2
 
@@ -59,20 +60,17 @@ def main() -> None:
     print(f"Number of atoms: {len(atoms)}")
     # print(system)
         
-    state = StateReporter(interval=100)
-    xyz  = XyzReporter("out.xyz", atom_types_map, interval=1000)
-
-    # Heating up system
-    # verlet = VerletIntegrator(temperature=300.0 * unit.kelvin)
-    # md = Simulation(system, verlet, reporters=[state, xyz])
-    # md.step(10_000)
-
     integrator = VerletIntegrator(
         time_step=time_step,
-        # temperature=temperature,
-        # pressure=pressure,
+        system_coupling=[
+            BrendsenThermostat(temperature, thermostat_coupling_time, time_step),
+            BrendsenBarostat(pressure, barostat_coupling_time, compressibility, time_step),
+        ]
     )
     # print(integrator)
+
+    state = StateReporter(interval=100)
+    xyz  = XyzReporter("out.xyz", atom_types_map, interval=1000)
 
     simulation = Simulation(
         system,
@@ -84,7 +82,12 @@ def main() -> None:
 
     # simulation.step()
     simulation.step(10_000)
-    # simulation.step(30_000)
+    simulation.step(40_000)
+
+    # Heating up system
+    # verlet = VerletIntegrator(time_step)
+    # md = Simulation(system, verlet, forcefield, reporters=[state, xyz])
+    # md.step(10_000)
 
 
 if __name__ == "__main__":
