@@ -1,13 +1,18 @@
 from __future__ import annotations
 import numpy as np
 from numba import njit
-from typing import NamedTuple, TypeAlias
+from typing import NamedTuple
 from amardus.atoms import Atoms
 from amardus.neighbors import CellList, NeighborList
 from amardus.parameters import get_default_unit, Array, FLOAT
 
-
 KB = get_default_unit().boltzman
+
+
+class SystemParams(NamedTuple):
+    neighbor_cutoff: float
+    neighbor_skin: float
+    neighbor_max_atoms: int
 
 
 class System(NamedTuple):
@@ -16,22 +21,25 @@ class System(NamedTuple):
     neighbors: NeighborList
     energy: Array
     virial: Array
+    params: SystemParams
 
     @classmethod
     def create(
         cls,
         atoms: Atoms,
-        cell_length: float,
+        neighbor_cutoff: float,
+        neighbor_skin: float,
         neighbor_max_atoms: int,
     ) -> System:
         num_atoms = len(atoms)
 
         return cls(
             atoms=atoms,
-            cells = CellList.create(atoms.box, num_atoms, cell_length),
+            cells=CellList.create(atoms.box, num_atoms, cell_length=neighbor_cutoff),
             neighbors=NeighborList.create(num_atoms, neighbor_max_atoms),
-            energy=np.zeros(1, dtype=FLOAT),
-            virial=np.zeros(1, dtype=FLOAT),
+            energy=np.empty(1, dtype=FLOAT),
+            virial=np.empty(1, dtype=FLOAT),
+            params=SystemParams(neighbor_cutoff, neighbor_skin, neighbor_max_atoms),
         )
 
 

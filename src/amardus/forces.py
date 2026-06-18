@@ -10,15 +10,6 @@ from dataclasses import dataclass
 
 KE = get_default_unit().coulomb
 
-# @njit
-# def compute_forces(sys: System) -> None:
-#     sys.atoms.forces[:] = FLOAT(0.0)
-#     sys.energy[0] = FLOAT(0.0)
-#     sys.virial[0] = FLOAT(0.0)
-#
-#     compute_lj_forces(sys)
-#     # compute_coul_forces(sys)
-
 
 # @njit
 # def compute_coul_forces(sys: System) -> None:
@@ -38,6 +29,10 @@ class LennardJonesForceField(ForceFieldInterface):
     cutoff_radius: float
 
     def compute_forces(self, sys: System) -> None:
+        sys.atoms.forces[:] = FLOAT(0.0)
+        sys.energy[0] = FLOAT(0.0)
+        sys.virial[0] = FLOAT(0.0)
+
         compute_lj_forces(sys, self.params, self.cutoff_radius)
 
 
@@ -76,7 +71,7 @@ def compute_lj_forces(
     atom_types = sys.atoms.atom_types
     cutoff2 = cutoff_radius**2
     length = box[0, 0], box[1, 1], box[2, 2]
-    num_atoms = pos.shape[0] 
+    num_atoms = len(pos)
 
     epsilon, sigma = params.epsilon, params.sigma
     sigma3 = sigma * sigma * sigma
@@ -88,7 +83,7 @@ def compute_lj_forces(
     e4s12 = FLOAT(4.0) * epsilon * sigma12
 
     for ni in range(num_atoms):
-        ai = atom_types[ni]
+        ai = atom_types[ni] 
 
         for j in range(neighbors.num_neighbors_per_atom[ni]):
             nj = neighbors.neighbor_index[ni, j]

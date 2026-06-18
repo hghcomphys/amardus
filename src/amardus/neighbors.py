@@ -76,12 +76,12 @@ class NeighborList(NamedTuple):
         )
 
 
-@njit #(inline="always")
+@njit(inline="always")
 def index3d(ic: tuple[int, int, int], nc: tuple[int, int, int]) -> int:
     return ic[0] + nc[0] * (ic[1] + nc[1] * ic[2])
 
 
-@njit #(inline="always")
+@njit(inline="always")
 def apply_pbc(
     rij: FLOAT,
     length: FLOAT,
@@ -104,16 +104,15 @@ class SystemInterface(Protocol):
     @property
     def neighbors(self) -> NeighborList: ...
 
+    @property
+    def params(self) -> NamedTuple: ...
+
 
 @njit
-def update_neighbors(
-        sys: SystemInterface, 
-        cutoff_radius: float, 
-        skin_radius: float,
-) -> None:
+def update_neighbors(sys: SystemInterface) -> None:
     atoms = sys.atoms 
     cells, neighbors = sys.cells, sys.neighbors
-    neighbor_cutoff2 = (cutoff_radius + skin_radius) ** 2
+    neighbor_cutoff2 = (sys.params.neighbor_cutoff + sys.params.neighbor_skin) ** 2
     box, pos = atoms.box, atoms.positions
     length = box[0, 0], box[1, 1], box[2, 2]
     num_atoms = pos.shape[0] 
@@ -196,10 +195,10 @@ def update_neighbors(
 
 
 @njit
-def check_if_neighbor_need_update(sys: SystemInterface, skin_radius: float) -> bool:
+def check_if_neighbor_need_update(sys: SystemInterface) -> bool:
     atoms= sys.atoms
     num_atoms = atoms.positions.shape[0] 
-    displacement_cutoff2 = 0.25 * skin_radius **2
+    displacement_cutoff2 = 0.25 * sys.params.neighbor_skin **2
     r2 = FLOAT(0.0)
     for n in range(num_atoms):
         for dim in range(3):

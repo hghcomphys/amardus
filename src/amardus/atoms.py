@@ -22,7 +22,7 @@ class Atoms(NamedTuple):
         masses = atoms.get_masses()
         positions = np.asarray(atoms.get_positions(), dtype=FLOAT, order=ORDER)
         velocities = np.asarray(atoms.get_velocities(), dtype=FLOAT, order=ORDER)
-        forces = np.zeros(positions.shape, dtype=FLOAT, order=ORDER)
+        forces = np.empty(positions.shape, dtype=FLOAT, order=ORDER)
         box = np.asarray(atoms.cell.array, dtype=FLOAT)
         atom_types = np.array([atom_types_map[s] for s in atoms.get_chemical_symbols()], dtype=INDEX)
         

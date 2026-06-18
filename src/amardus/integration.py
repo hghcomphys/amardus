@@ -18,14 +18,6 @@ class IntegrationInterface(Protocol):
 class VerletIntegrator(IntegrationInterface):
     time_step: float
 
-    # def __init__(
-    #     self,
-    #     temperature: Optional[float] = None,
-    #     pressure: Optional[float] = None,
-    # ):
-    #     self.temperature = temperature
-    #     self.pressure = pressure
-
     def pre_forces_udpate(self, sys: System) -> None:
         verlet_integrator_position(sys, self.time_step)
 
