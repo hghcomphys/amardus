@@ -19,18 +19,27 @@ from amardus.integration import BrendsenThermostat, BrendsenBarostat
 
 def main() -> None:
 
+    print(r"""
+      _                            _
+     / \   _ __ ___   __ _ _ __ __| |_   _ ___
+    / _ \ | '_ ` _ \ / _` | '__/ _` | | | / __|
+   / ___ \| | | | | | (_| | | | (_| | |_| \__ \
+  /_/   \_\_| |_| |_|\__,_|_|  \__,_|\__,_|___/
+           Molecular Dynamics Engine
+-------------------------------------------------
+""")
+
     unit = get_default_unit()
     time_step = 0.001 * unit.picoseconds
-    cutoff = 9.0 * unit.angstrom
-    temperature=100.0 * unit.kelvin
+    cutoff = 7.0 * unit.angstrom
+    temperature=300.0 * unit.kelvin
     pressure=1.0 * unit.bar
     thermostat_coupling_time=10 * time_step
     barostat_coupling_time=10 * time_step
-    compressibility=1.0
     # ewald_alpha=3.5 / cutoff
     # ewald_kmax=2
 
-    atoms_ase: AseAtoms = read_ase("argon-neon.xyz")
+    atoms_ase: AseAtoms = read_ase("argon.xyz")
     MaxwellBoltzmannDistribution(
         atoms_ase,
         temperature_K=temperature / unit.kelvin,
@@ -63,8 +72,8 @@ def main() -> None:
     integrator = VerletIntegrator(
         time_step=time_step,
         system_coupling=[
-            BrendsenThermostat(temperature, thermostat_coupling_time, time_step),
-            BrendsenBarostat(pressure, barostat_coupling_time, compressibility, time_step),
+            BrendsenThermostat(temperature, thermostat_coupling_time),
+            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ]
     )
     # print(integrator)
@@ -76,13 +85,14 @@ def main() -> None:
         system,
         integrator,
         forcefield,
-        reporters=[state, xyz],
+        reporters=[state] #, xyz],
     )
     # print(simulation)
 
     # simulation.step()
     simulation.step(10_000)
-    simulation.step(40_000)
+    # simulation.reporters.append(xyz)
+    # simulation.step(40_000)
 
     # Heating up system
     # verlet = VerletIntegrator(time_step)

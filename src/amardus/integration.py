@@ -8,6 +8,8 @@ from amardus.parameters import FLOAT
 
 
 class IntegrationInterface(Protocol):
+    time_step: float
+    current_step: int
 
     def pre_forces_udpate(self, sys: System) -> None: ...
 
@@ -16,12 +18,13 @@ class IntegrationInterface(Protocol):
 
 class ThermoBaroInterface(Protocol):
 
-    def apply(self, sys: System) -> None: ...
+    def apply(self, sys: System, integrator: IntegrationInterface) -> None: ...
 
 
 @dataclass
 class VerletIntegrator(IntegrationInterface):
     time_step: float
+    current_step: int = 0
     system_coupling: list[ThermoBaroInterface] = field(default_factory=list)
 
     def pre_forces_udpate(self, sys: System) -> None:
@@ -29,23 +32,27 @@ class VerletIntegrator(IntegrationInterface):
 
     def post_forces_update(self, sys: System) -> None:
         verlet_integrator_velocity(sys, self.time_step)
+        self.current_step += 1
 
         for coupling in self.system_coupling:
-            coupling.apply(sys)
+            coupling.apply(sys, integrator=self)
 
 
 @dataclass
 class BrendsenThermostat:
     target_temperature: float
     coupling_time: float
-    time_step: float
+    interval: int = 1
 
-    def apply(self, sys: System) -> None:
+    def apply(self, sys: System, integrator: IntegrationInterface) -> None:
+        if integrator.current_step % self.interval != 0:
+            return
+
         brendsen_thermostat(
             sys,
             self.target_temperature,
             self.coupling_time,
-            self.time_step,
+            integrator.time_step,
         )
 
 
@@ -53,16 +60,20 @@ class BrendsenThermostat:
 class BrendsenBarostat:
     target_pressure: float
     coupling_time: float
-    compressibility: float
-    time_step: float
+    compressibility: float = 1.0
+    interval: int = 1
 
-    def apply(self, sys: System) -> None:
+    def apply(self, sys: System, integrator: IntegrationInterface) -> None:
+
+        if integrator.current_step % self.interval != 0:
+            return
+
         brendsen_barostat(
             sys,
             self.target_pressure,
             self.coupling_time,
             self.compressibility,
-            self.time_step,
+            integrator.time_step,
         )
 
 

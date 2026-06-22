@@ -36,8 +36,8 @@ class StateReporter(ReporterInteface):
             f" {'TotE':10}"
             # f" {'UpdateNb':10}"
             f" {'AvgNb':10}"
-            f" {'AvgCell':10}"
-            f" {'Box':10}"
+            # f" {'AvgCell':10}"
+            # f" {'Box':10}"
             f" {'Dens':10}"
         )
 
@@ -71,8 +71,8 @@ class StateReporter(ReporterInteface):
             f" {(ke + pe) / unit.electronvolt:<10.4f}"
             # f" {num_neighbor_updates:<10}"
             f" {sys.neighbors.num_neighbors_per_atom.mean():<10.2f}"
-            f" {sys.cells.num_atoms_per_cell.mean():<10.2f}"
-            f" {math.pow(vol, 1/3):<10.4f}"
+            # f" {sys.cells.num_atoms_per_cell.mean():<10.2f}"
+            # f" {math.pow(vol, 1/3):<10.4f}"
             f" {dens / unit.grcm3:<10.6f}"
         )
 
