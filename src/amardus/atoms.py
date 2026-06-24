@@ -1,7 +1,7 @@
 from __future__ import annotations
 import numpy as np
 from typing import NamedTuple
-from amardus.parameters import Array, FLOAT, ORDER, IndexArray, INDEX, get_default_unit
+from amardus.parameters import Array, FLOAT, ORDER, IndexArray, INDEX
 from ase import Atoms as AseAtoms
 
 

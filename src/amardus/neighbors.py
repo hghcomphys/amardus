@@ -92,6 +92,13 @@ def apply_pbc(
         rij += length
     return rij
 
+# @njit(inline="always")
+# def apply_pbc(
+#     rij: FLOAT,
+#     length: FLOAT,
+# ) -> FLOAT:
+#     return rij - length * np.round(rij / length)
+
 
 class SystemInterface(Protocol):
 

@@ -5,7 +5,7 @@ from amardus.neighbors import (
 )
 from amardus.system import System
 from amardus.forces import ForceFieldInterface
-from amardus.io import ReporterInteface
+from amardus.reporters import ReporterInteface
 from amardus.integration import IntegrationInterface
 
 
@@ -13,7 +13,7 @@ from amardus.integration import IntegrationInterface
 class Simulation:
     system: System
     integration: IntegrationInterface
-    forcefield: ForceFieldInterface
+    forcefields: list[ForceFieldInterface]
     reporters: list[ReporterInteface] = field(default_factory=list)
     current_step: int = 0
     
@@ -21,11 +21,10 @@ class Simulation:
 
         sys = self.system
         update_neighbors(sys)
-        num_neighbor_updates = 1
-        self.forcefield.compute_forces(sys)
+        for ff in self.forcefields: 
+            ff.compute_forces(sys)
 
         for _ in range(number+1):
-
             for reporter in self.reporters:
                reporter.collect(sys, self.current_step)
 
@@ -35,10 +34,10 @@ class Simulation:
             if check_if_neighbor_need_update(sys):
                 # cells = initialize_cells(params, atoms.box)
                 update_neighbors(sys)
-                num_neighbor_updates += 1
 
-            self.forcefield.compute_forces(sys)
+            for ff in self.forcefields:
+                ff.compute_forces(sys)
+
             self.integration.post_forces_update(sys)
-
             self.current_step += 1
 

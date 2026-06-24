@@ -5,16 +5,12 @@ from ase.md.velocitydistribution import (
     MaxwellBoltzmannDistribution,
     Stationary,
 )
-from amardus.io import StateReporter, XyzReporter
-from amardus import (
-    Atoms,
-    System,
-    Simulation,
-    VerletIntegrator,
-)
+from amardus import Atoms, System, Simulation
 from amardus.parameters import get_default_unit
+from amardus.reporters import StateReporter, XyzReporter
 from amardus.forces import LennardJonesForceField, LennardJonesParams
-from amardus.integration import BrendsenThermostat, BrendsenBarostat 
+from amardus.integration import VerletIntegrator, LeapfrogIntegrator 
+from amardus.integration import BrendsenThermostat, BrendsenBarostat
 
 
 def main() -> None:
@@ -32,10 +28,10 @@ def main() -> None:
     unit = get_default_unit()
     time_step = 0.001 * unit.picoseconds
     cutoff = 7.0 * unit.angstrom
-    temperature=300.0 * unit.kelvin
-    pressure=1.0 * unit.bar
-    thermostat_coupling_time=10 * time_step
-    barostat_coupling_time=10 * time_step
+    temperature = 300.0 * unit.kelvin
+    pressure = 1.0 * unit.bar
+    thermostat_coupling_time = 10 * time_step
+    barostat_coupling_time = 10 * time_step
     # ewald_alpha=3.5 / cutoff
     # ewald_kmax=2
 
@@ -50,47 +46,47 @@ def main() -> None:
     atoms = Atoms.from_ase(atoms_ase, atom_types_map)
     # print(atoms)
 
-    forcefield = LennardJonesForceField(
+    lennard_jones = LennardJonesForceField(
         cutoff_radius=cutoff,
         params=LennardJonesParams.from_list(
             epsilon=[e * unit.electronvolt for e in [0.01032, 0.00307]],
             sigma=[s * unit.angstrom for s in [3.405, 2.789]],
-        )
+        ),
     )
     # print(forcefield)
 
     system = System.create(
-        atoms, 
-        neighbor_cutoff=cutoff, 
-        neighbor_skin = 1.0 * unit.angstrom, 
+        atoms,
+        neighbor_cutoff=cutoff,
+        neighbor_skin=1.0 * unit.angstrom,
         neighbor_max_atoms=300,
     )
     print("System: Lennard-Jones particles")
     print(f"Number of atoms: {len(atoms)}")
     # print(system)
-        
+
     integrator = VerletIntegrator(
         time_step=time_step,
         system_coupling=[
-            BrendsenThermostat(temperature, thermostat_coupling_time),
-            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
-        ]
+            # BrendsenThermostat(temperature, thermostat_coupling_time),
+            # BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+        ],
     )
     # print(integrator)
 
     state = StateReporter(interval=100)
-    xyz  = XyzReporter("out.xyz", atom_types_map, interval=1000)
+    xyz = XyzReporter("out.xyz", atom_types_map, interval=1000)
 
     simulation = Simulation(
         system,
         integrator,
-        forcefield,
-        reporters=[state] #, xyz],
+        forcefields=[lennard_jones],
+        reporters=[state, xyz],
     )
     # print(simulation)
 
     # simulation.step()
-    simulation.step(10_000)
+    simulation.step(1_000)
     # simulation.reporters.append(xyz)
     # simulation.step(40_000)
 

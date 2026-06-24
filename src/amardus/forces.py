@@ -243,3 +243,4 @@ def compute_ewald_self_energy(sys: System, alpha: float) -> None:
     energy = sys.energy
     charge = atoms.charges
     energy[0] += -alpha / math.sqrt(math.pi) * np.sum(charge**2)
+

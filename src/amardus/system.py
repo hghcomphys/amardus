@@ -45,19 +45,19 @@ class System(NamedTuple):
 
 @njit
 def get_kinetic_energy(sys: System) -> FLOAT:
-    m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
-    return FLOAT(0.5) * np.sum(m * v * v)
+    mass, vel = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
+    return FLOAT(0.5) * np.sum(mass * vel * vel)
 
 
 @njit
 def get_temperature(sys: System) -> FLOAT:
-    m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
-    return np.mean(m * v * v) / KB
+    mass, vel = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
+    return np.mean(mass * vel * vel) / KB
 
 
 @njit
 def get_pressure(sys: System) -> float:
-    m, v = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
+    mass, vel = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
     vol = np.linalg.det(sys.atoms.box)
     virial = sys.virial
-    return (np.sum(m * v * v) - virial[0]) / (FLOAT(3.0) * vol)
+    return (np.sum(mass * vel * vel) - virial[0]) / (FLOAT(3.0) * vol)
