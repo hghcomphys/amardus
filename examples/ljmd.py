@@ -9,7 +9,7 @@ from amardus import Atoms, System, Simulation
 from amardus.parameters import get_default_unit
 from amardus.reporters import StateReporter, XyzReporter
 from amardus.forces import LennardJonesForceField, LennardJonesParams
-from amardus.integration import VerletIntegrator, LeapfrogIntegrator 
+from amardus.integration import LangevinIntegrator, VerletIntegrator, LeapfrogIntegrator 
 from amardus.integration import BrendsenThermostat, BrendsenBarostat
 
 
@@ -65,21 +65,29 @@ def main() -> None:
     print(f"Number of atoms: {len(atoms)}")
     # print(system)
 
-    integrator = VerletIntegrator(
+    verlet = VerletIntegrator(
         time_step=time_step,
         system_coupling=[
             # BrendsenThermostat(temperature, thermostat_coupling_time),
             # BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
-    # print(integrator)
+    langvin = LangevinIntegrator(
+        time_step=time_step,
+        damping_time=10 * time_step, 
+        temperature=temperature,
+        system_coupling=[
+            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+        ],
+    )
+    # print(verlet)
 
     state = StateReporter(interval=100)
     xyz = XyzReporter("out.xyz", atom_types_map, interval=1000)
 
     simulation = Simulation(
         system,
-        integrator,
+        langvin,
         forcefields=[lennard_jones],
         reporters=[state, xyz],
     )
@@ -88,7 +96,7 @@ def main() -> None:
     # simulation.step()
     simulation.step(1_000)
     # simulation.reporters.append(xyz)
-    # simulation.step(40_000)
+    simulation.step(50_000)
 
     # Heating up system
     # verlet = VerletIntegrator(time_step)

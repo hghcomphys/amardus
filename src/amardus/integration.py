@@ -4,7 +4,10 @@ from typing import Protocol
 import numpy as np
 from numba import njit
 from amardus.system import System, get_temperature, get_pressure
-from amardus.parameters import FLOAT
+from amardus.parameters import FLOAT, get_default_unit, Array
+from numpy import random
+
+KB = get_default_unit().boltzman
 
 
 class IntegrationInterface(Protocol):
@@ -52,11 +55,11 @@ def verlet_integrator_position(sys: System, time_step: float) -> None:
         for dim in range(3):
             pos[n, dim] = np.fmod(
                 pos[n, dim]
-                + dt * (vel[n, dim] + FLOAT(0.5) * dt / mass[n] * frc[n, dim])
+                + dt * (vel[n, dim] + FLOAT(0.5) * dt * frc[n, dim] / mass[n])
                 + FLOAT(100) * bx[dim],
                 bx[dim],
             )
-            vel[n, dim] += FLOAT(0.5) * dt / mass[n] * frc[n, dim]
+            vel[n, dim] += FLOAT(0.5) * dt * frc[n, dim] / mass[n]
 
 
 @njit
@@ -65,7 +68,7 @@ def verlet_integrator_velocity(sys: System, time_step: float) -> None:
     dt = time_step
     vel, frc = atoms.velocities, atoms.forces
     mass = atoms.masses.reshape(-1, 1)
-    vel += FLOAT(0.5) * dt / mass * frc
+    vel += FLOAT(0.5) * dt * frc / mass
 
 
 @dataclass
@@ -97,7 +100,7 @@ def leapfrog_integrator_position(sys: System, time_step: float) -> None:
 
     for n in range(num_atoms):
         for dim in range(3):
-            vel[n, dim] += FLOAT(0.5) * dt / mass[n] * frc[n, dim]
+            vel[n, dim] += FLOAT(0.5) * dt * frc[n, dim] / mass[n] 
             pos[n, dim] = np.fmod(
                 pos[n, dim] + dt * vel[n, dim] + FLOAT(100) * bx[dim],
                 bx[dim],
@@ -110,7 +113,71 @@ def leapfrog_integrator_velocity(sys: System, time_step: float) -> None:
     dt = time_step
     vel, frc = atoms.velocities, atoms.forces
     mass = atoms.masses.reshape(-1, 1)
-    vel += FLOAT(0.5) * dt / mass * frc
+    vel += FLOAT(0.5) * dt * frc / mass
+
+
+
+@dataclass
+class LangevinIntegrator(IntegrationInterface):
+    time_step: float
+    damping_time: float
+    temperature: float
+    current_step: int = 0
+    system_coupling: list[ThermoBaroInterface] = field(default_factory=list)
+    rng: random.Generator = field(default_factory=lambda: random.default_rng(1234))
+
+    def pre_forces_udpate(self, sys: System) -> None:
+        langevin_integrator_position(sys, 
+             self.time_step, 
+             self.damping_time, 
+             self.temperature,
+             self.rng.normal(size=sys.atoms.velocities.shape),
+        )
+
+    def post_forces_update(self, sys: System) -> None:
+        langevin_integrator_velocity(sys, self.time_step)
+        self.current_step += 1
+
+        for coupling in self.system_coupling:
+            coupling.apply(sys, integrator=self)
+
+
+@njit
+def langevin_integrator_position(
+    sys: System, 
+    time_step: float, 
+    damping_time: float, 
+    temperature: float,
+    randomness: Array,
+) -> None:
+    atoms = sys.atoms
+    dt = time_step
+    box = atoms.box
+    num_atoms = atoms.positions.shape[0]
+    pos, vel, frc = atoms.positions, atoms.velocities, atoms.forces
+    mass = atoms.masses
+    bx = box[0, 0], box[1, 1], box[2, 2]
+
+    c1 = np.exp(- dt / damping_time)
+    c2 = np.sqrt((FLOAT(1.0)-c1 * c1) * KB * temperature / mass)
+
+    for n in range(num_atoms):
+        for dim in range(3):
+            vel[n, dim] += FLOAT(0.5) * dt * frc[n, dim] / mass[n] 
+            pos[n, dim] += FLOAT(0.5) * dt * vel[n, dim]
+            vel[n, dim] = c1 * vel[n, dim] + c2[n] * randomness[n, dim] 
+            pos[n, dim] = np.fmod(
+                pos[n, dim] + FLOAT(0.5) * dt * vel[n, dim] + FLOAT(100) * bx[dim],
+                bx[dim],
+            )
+
+@njit
+def langevin_integrator_velocity(sys: System, time_step: float) -> None:
+    atoms = sys.atoms
+    dt = time_step
+    vel, frc = atoms.velocities, atoms.forces
+    mass = atoms.masses.reshape(-1, 1)
+    vel += FLOAT(0.5) * dt * frc / mass
 
 
 @dataclass

@@ -7,8 +7,8 @@ MD engine from scratch.
 
 Features:
 
-- [x] Linear MD (linked cell, Verlet list)
-- [x] Verlet and Leapfrog integrator
+- [x] Linear scaling MD based on linked cell and Verlet list
+- [x] Verlet, langevin, and Leapfrog integrators
 - [x] NVT and NPT ensembles (Brendsen)
 - [x] Short-range interaction (Lennard-Jones)
 - [ ] Bonded interactions (bonds, angles, dihedrals)
