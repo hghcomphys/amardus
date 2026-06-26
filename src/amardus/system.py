@@ -42,6 +42,9 @@ class System(NamedTuple):
             params=SystemParams(neighbor_cutoff, neighbor_skin, neighbor_max_atoms),
         )
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(num_atoms={len(self.atoms)})" 
+
 
 @njit
 def get_kinetic_energy(sys: System) -> FLOAT:

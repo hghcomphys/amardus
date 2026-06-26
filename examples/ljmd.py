@@ -9,8 +9,8 @@ from amardus import Atoms, System, Simulation
 from amardus.parameters import get_default_unit
 from amardus.reporters import StateReporter, XyzReporter
 from amardus.forces import LennardJonesForceField, LennardJonesParams
-from amardus.integration import LangevinIntegrator, VerletIntegrator, LeapfrogIntegrator 
-from amardus.integration import BrendsenThermostat, BrendsenBarostat
+from amardus.integration import LangevinIntegrator, VerletIntegrator
+from amardus.coupling import BrendsenThermostat, BrendsenBarostat
 
 
 def main() -> None:
@@ -35,7 +35,7 @@ def main() -> None:
     # ewald_alpha=3.5 / cutoff
     # ewald_kmax=2
 
-    atoms_ase: AseAtoms = read_ase("argon.xyz")
+    atoms_ase: AseAtoms = read_ase("argon-neon.xyz")
     MaxwellBoltzmannDistribution(
         atoms_ase,
         temperature_K=temperature / unit.kelvin,
@@ -53,7 +53,7 @@ def main() -> None:
             sigma=[s * unit.angstrom for s in [3.405, 2.789]],
         ),
     )
-    # print(forcefield)
+    # print(lennard_jones)
 
     system = System.create(
         atoms,
@@ -61,42 +61,40 @@ def main() -> None:
         neighbor_skin=1.0 * unit.angstrom,
         neighbor_max_atoms=300,
     )
-    print("System: Lennard-Jones particles")
-    print(f"Number of atoms: {len(atoms)}")
     # print(system)
 
     verlet = VerletIntegrator(
         time_step=time_step,
-        system_coupling=[
-            # BrendsenThermostat(temperature, thermostat_coupling_time),
-            # BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
-        ],
-    )
-    langvin = LangevinIntegrator(
-        time_step=time_step,
-        damping_time=10 * time_step, 
-        temperature=temperature,
-        system_coupling=[
+        system_couplings=[
+            BrendsenThermostat(temperature, thermostat_coupling_time),
             BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
-    # print(verlet)
+    integrator = LangevinIntegrator(
+        time_step=time_step,
+        damping_time=10 * time_step, 
+        temperature=temperature,
+        system_couplings=[
+            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+        ],
+    )
+    # print(integrator)
 
     state = StateReporter(interval=100)
     xyz = XyzReporter("out.xyz", atom_types_map, interval=1000)
 
     simulation = Simulation(
         system,
-        langvin,
+        verlet,
         forcefields=[lennard_jones],
         reporters=[state, xyz],
     )
-    # print(simulation)
+    print(simulation)
 
     # simulation.step()
     simulation.step(1_000)
     # simulation.reporters.append(xyz)
-    simulation.step(50_000)
+    # simulation.step(50_000)
 
     # Heating up system
     # verlet = VerletIntegrator(time_step)

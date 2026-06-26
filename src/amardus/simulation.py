@@ -15,7 +15,7 @@ class Simulation:
     integration: IntegrationInterface
     forcefields: list[ForceFieldInterface]
     reporters: list[ReporterInteface] = field(default_factory=list)
-    current_step: int = 0
+    current_step: int = field(default=0, repr=False)
     
     def step(self, number: int = 1) -> None:
 

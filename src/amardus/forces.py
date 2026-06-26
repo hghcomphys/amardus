@@ -6,16 +6,16 @@ from typing import NamedTuple, Protocol
 from amardus.system import System
 from amardus.neighbors import apply_pbc
 from amardus.parameters import FLOAT, Array, get_default_unit
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 KE = get_default_unit().coulomb
 
 
 # @njit
 # def compute_coul_forces(sys: System) -> None:
-#     compute_ewald_real_forces(sys)
-#     compute_ewald_reciprocal_forces(sys)
-#     compute_ewald_self_energy(sys)
+#     _compute_ewald_real_forces(sys)
+#     _compute_ewald_reciprocal_forces(sys)
+#     _compute_ewald_self_energy(sys)
 
 
 class ForceFieldInterface(Protocol):
@@ -25,7 +25,7 @@ class ForceFieldInterface(Protocol):
 
 @dataclass
 class LennardJonesForceField(ForceFieldInterface):
-    params: LennardJonesParams
+    params: LennardJonesParams = field(repr=False)
     cutoff_radius: float
 
     def compute_forces(self, sys: System) -> None:
@@ -33,7 +33,7 @@ class LennardJonesForceField(ForceFieldInterface):
         sys.energy[0] = FLOAT(0.0)
         sys.virial[0] = FLOAT(0.0)
 
-        compute_lj_forces(sys, self.params, self.cutoff_radius)
+        _compute_lj_forces(sys, self.params, self.cutoff_radius)
 
 
 class LennardJonesParams(NamedTuple):
@@ -54,10 +54,10 @@ class LennardJonesParams(NamedTuple):
         sigma_matrix = 0.5 * (sigma[:, None] + sigma[None, :])
 
         return cls(epsilon=epsilon_matrix, sigma=sigma_matrix)
-
+    
 
 @njit
-def compute_lj_forces(
+def _compute_lj_forces(
     sys: System,
     params: LennardJonesParams,
     cutoff_radius: float,
@@ -117,7 +117,7 @@ def compute_lj_forces(
 
 
 @njit
-def compute_ewald_real_forces(
+def _compute_ewald_real_forces(
     sys: System,
     cutoff_radius: float,
     alpha: float,
@@ -170,7 +170,7 @@ def compute_ewald_real_forces(
 
 
 @njit
-def compute_ewald_reciprocal_forces(
+def _compute_ewald_reciprocal_forces(
     sys: System,
     alpha: float,
     kmax: int,
@@ -238,7 +238,7 @@ def compute_ewald_reciprocal_forces(
 
 
 @njit
-def compute_ewald_self_energy(sys: System, alpha: float) -> None:
+def _compute_ewald_self_energy(sys: System, alpha: float) -> None:
     atoms = sys.atoms
     energy = sys.energy
     charge = atoms.charges

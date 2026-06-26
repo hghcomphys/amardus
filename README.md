@@ -1,6 +1,6 @@
 # Amardus
 
-MD engine from scratch.
+Molecular Dynamics Engine from scratch.
 
 > *Amardus* is the Greek name for the *Sefid-Rud*, a long river in northern Iran historically known for its abundant fish.
 
@@ -9,8 +9,10 @@ Features:
 
 - [x] Linear scaling MD based on linked cell and Verlet list
 - [x] Verlet, langevin, and Leapfrog integrators
-- [x] NVT and NPT ensembles (Brendsen)
-- [x] Short-range interaction (Lennard-Jones)
+- [x] NVE, NVT, and NPT ensembles (Brendsen)
+- [x] Non-bonded short-range interaction (Lennard-Jones)
+- [ ] Metals (EAM) 
+- [ ] Molecules 
 - [ ] Bonded interactions (bonds, angles, dihedrals)
 - [ ] Long-range interaction (Coulomb)
 - [ ] Constraints (SHAKE, RATTLE)

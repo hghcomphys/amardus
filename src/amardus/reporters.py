@@ -76,6 +76,9 @@ class StateReporter(ReporterInteface):
             f" {dens / unit.grcm3:<10.6f}"
         )
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(interval={self.interval})" 
+
 
 class XyzReporter(ReporterInteface):
 
@@ -117,3 +120,6 @@ class XyzReporter(ReporterInteface):
     def __del__(self):
         if self.file:
             self.file.close()
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(interval={self.interval})" 
