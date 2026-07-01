@@ -4,9 +4,9 @@ from amardus.neighbors import (
     check_if_neighbor_need_update,
 )
 from amardus.system import System
-from amardus.forces import ForceFieldInterface
 from amardus.reporters import ReporterInteface
 from amardus.integration import IntegrationInterface
+from amardus.forces import ForceFieldInterface
 
 
 @dataclass

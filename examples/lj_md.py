@@ -8,9 +8,9 @@ from ase.md.velocitydistribution import (
 from amardus import Atoms, System, Simulation
 from amardus.parameters import get_default_unit
 from amardus.reporters import StateReporter, XyzReporter
-from amardus.forces import LennardJonesForceField, LennardJonesParams
 from amardus.integration import LangevinIntegrator, VerletIntegrator
 from amardus.coupling import BrendsenThermostat, BrendsenBarostat
+from amardus.forces import LennardJonesForceField, LennardJonesParams
 
 
 def main() -> None:
