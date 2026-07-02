@@ -6,7 +6,7 @@ from amardus.neighbors import (
 from amardus.system import System
 from amardus.reporters import ReporterInteface
 from amardus.integration import IntegrationInterface
-from amardus.forces import ForceFieldInterface
+from amardus.potentials import ForceFieldInterface 
 
 
 @dataclass

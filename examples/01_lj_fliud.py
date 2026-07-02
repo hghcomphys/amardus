@@ -10,7 +10,7 @@ from amardus.parameters import get_default_unit
 from amardus.reporters import StateReporter, XyzReporter
 from amardus.integration import LangevinIntegrator, VerletIntegrator
 from amardus.coupling import BrendsenThermostat, BrendsenBarostat
-from amardus.forces import LennardJonesForceField, LennardJonesParams
+from amardus.potentials import LennardJonesPotential, LennardJonesParams
 
 
 def main() -> None:
@@ -46,7 +46,7 @@ def main() -> None:
     atoms = Atoms.from_ase(atoms_ase, atom_types_map)
     # print(atoms)
 
-    lennard_jones = LennardJonesForceField(
+    lennard_jones = LennardJonesPotential(
         cutoff_radius=cutoff,
         params=LennardJonesParams.from_list(
             epsilon=[e * unit.electronvolt for e in [0.01032, 0.00307]],

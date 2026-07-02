@@ -6,12 +6,11 @@ from ase.md.velocitydistribution import (
     Stationary,
 )
 from amardus import Atoms, System, Simulation
-from amardus.forces.eam import EAMParams
 from amardus.parameters import get_default_unit
 from amardus.reporters import StateReporter, XyzReporter
-from amardus.integration import LangevinIntegrator, VerletIntegrator
+from amardus.integration import VerletIntegrator
 from amardus.coupling import BrendsenThermostat, BrendsenBarostat
-from amardus.forces import EAMForceField
+from amardus.potentials import EAMPotential, EAMParams
 
 
 
@@ -48,7 +47,7 @@ def main() -> None:
     atoms = Atoms.from_ase(atoms_ase, atom_types_map)
     # print(atoms)
 
-    eam = EAMForceField(
+    eam = EAMPotential(
         cutoff_radius=cutoff, 
         params=EAMParams(
             A=0.931312 * unit.electronvolt * unit.angstrom**-1,
@@ -79,14 +78,6 @@ def main() -> None:
             BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
-    langevin = LangevinIntegrator(
-        time_step=time_step,
-        damping_time=10 * time_step, 
-        temperature=temperature,
-        system_couplings=[
-            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
-        ],
-    )
     # print(verlet)
 
     state = StateReporter(interval=100)
@@ -94,7 +85,7 @@ def main() -> None:
 
     simulation = Simulation(
         system,
-        langevin,
+        verlet,
         forcefields=[eam],
         reporters=[state, xyz],
     )
@@ -104,11 +95,6 @@ def main() -> None:
     # simulation.step(1_000)
     # simulation.reporters.append(xyz)
     # simulation.step(50_000)
-
-    # Heating up system
-    # verlet = VerletIntegrator(time_step)
-    # md = Simulation(system, verlet, forcefield, reporters=[state, xyz])
-    # md.step(10_000)
 
 
 if __name__ == "__main__":

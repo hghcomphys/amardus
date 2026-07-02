@@ -6,13 +6,13 @@ from dataclasses import dataclass, field
 from amardus.system import System
 from amardus.neighbors import apply_pbc
 from amardus.parameters import FLOAT, Array, get_default_unit
-from amardus.forces.interface import ForceFieldInterface
+from amardus.potentials.interface import ForceFieldInterface
 
 KE = get_default_unit().coulomb
 
 
 @dataclass
-class LennardJonesForceField(ForceFieldInterface):
+class LennardJonesPotential(ForceFieldInterface):
     params: LennardJonesParams = field(repr=False)
     cutoff_radius: float
 

@@ -1,13 +1,12 @@
 import math
 from typing import NamedTuple
-from numba.core.types import EnumMember
 import numpy as np
 from numba import njit
 from dataclasses import dataclass, field
 from amardus.parameters import FLOAT
 from amardus.system import System
 from amardus.neighbors import apply_pbc
-from amardus.forces.interface import ForceFieldInterface
+from amardus.potentials.interface import ForceFieldInterface
 
 
 class EAMParams(NamedTuple):
@@ -23,7 +22,7 @@ class EAMParams(NamedTuple):
 
 
 @dataclass
-class EAMForceField(ForceFieldInterface):
+class EAMPotential(ForceFieldInterface):
     params: EAMParams = field(repr=False)
     cutoff_radius: float
 
