@@ -6,6 +6,7 @@ from ase.md.velocitydistribution import (
     Stationary,
 )
 from amardus import Atoms, System, Simulation
+from amardus.forces.eam import EAMParams
 from amardus.parameters import get_default_unit
 from amardus.reporters import StateReporter, XyzReporter
 from amardus.integration import LangevinIntegrator, VerletIntegrator
@@ -28,7 +29,7 @@ def main() -> None:
 
     unit = get_default_unit()
     time_step = 0.001 * unit.picoseconds
-    cutoff = 7.0 * unit.angstrom
+    cutoff = 9.0 * unit.angstrom
     temperature = 300.0 * unit.kelvin
     pressure = 1.0 * unit.bar
     thermostat_coupling_time = 10 * time_step
@@ -47,7 +48,20 @@ def main() -> None:
     atoms = Atoms.from_ase(atoms_ase, atom_types_map)
     # print(atoms)
 
-    eam = EAMForceField(cutoff_radius=cutoff)
+    eam = EAMForceField(
+        cutoff_radius=cutoff, 
+        params=EAMParams(
+            A=0.931312 * unit.electronvolt * unit.angstrom**-1,
+            B=0.0 * unit.angstrom**-2,
+            c=2.96 * unit.angstrom,
+            c0=26.27034 * unit.electronvolt * unit.angstrom**-2,
+            c1=-24.40109 * unit.electronvolt * unit.angstrom**-3,
+            c2=6.957871 * unit.electronvolt * unit.angstrom**-4,
+            c3=-0.303077 * unit.electronvolt * unit.angstrom**-5,
+            c4=-0.085092 * unit.electronvolt * unit.angstrom**-6,
+            d=4.05 * unit.angstrom,
+        )
+    )
     # print(lennard_jones)
 
     system = System.create(
