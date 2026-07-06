@@ -1,6 +1,7 @@
 import numpy as np
 from ase.io import read as read_ase
 from ase import Atoms as AseAtoms
+from ase.build import bulk
 from ase.md.velocitydistribution import (
     MaxwellBoltzmannDistribution,
     Stationary,
@@ -28,7 +29,7 @@ def main() -> None:
 
     unit = get_default_unit()
     time_step = 0.001 * unit.picoseconds
-    cutoff = 9.0 * unit.angstrom
+    cutoff = 6.0 * unit.angstrom
     temperature = 300.0 * unit.kelvin
     pressure = 1.0 * unit.bar
     thermostat_coupling_time = 10 * time_step
@@ -36,14 +37,14 @@ def main() -> None:
     # ewald_alpha=3.5 / cutoff
     # ewald_kmax=2
 
-    atoms_ase: AseAtoms = read_ase("argon.xyz")
+    atoms_ase: AseAtoms = bulk('Fe', 'bcc', a=2.866, cubic=True).repeat((8, 8, 8))
     MaxwellBoltzmannDistribution(
         atoms_ase,
         temperature_K=temperature / unit.kelvin,
         rng=np.random.default_rng(1234),
     )
     Stationary(atoms_ase)
-    atom_types_map = {"Ar": 0, "Ne": 1}
+    atom_types_map = {"Fe": 0}
     atoms = Atoms.from_ase(atoms_ase, atom_types_map)
     # print(atoms)
 
@@ -51,14 +52,14 @@ def main() -> None:
         cutoff_radius=cutoff, 
         params=EAMParams(
             A=0.931312 * unit.electronvolt * unit.angstrom**-1,
-            B=0.0 * unit.angstrom**-2,
+            d=4.05 * unit.angstrom,
             c=2.96 * unit.angstrom,
             c0=26.27034 * unit.electronvolt * unit.angstrom**-2,
             c1=-24.40109 * unit.electronvolt * unit.angstrom**-3,
             c2=6.957871 * unit.electronvolt * unit.angstrom**-4,
             c3=-0.303077 * unit.electronvolt * unit.angstrom**-5,
             c4=-0.085092 * unit.electronvolt * unit.angstrom**-6,
-            d=4.05 * unit.angstrom,
+            B=0.0 * unit.angstrom**-2,
         )
     )
     # print(lennard_jones)
@@ -74,14 +75,14 @@ def main() -> None:
     verlet = VerletIntegrator(
         time_step=time_step,
         system_couplings=[
-            BrendsenThermostat(temperature, thermostat_coupling_time),
-            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+            # BrendsenThermostat(temperature, thermostat_coupling_time),
+            # BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
     # print(verlet)
 
     state = StateReporter(interval=100)
-    xyz = XyzReporter("out.xyz", atom_types_map, interval=1000)
+    xyz = XyzReporter("fe.xyz", atom_types_map, interval=1000)
 
     simulation = Simulation(
         system,
@@ -92,9 +93,9 @@ def main() -> None:
     print(simulation)
 
     simulation.step()
-    # simulation.step(1_000)
+    simulation.step(1_000)
     # simulation.reporters.append(xyz)
-    # simulation.step(50_000)
+    simulation.step(50_000)
 
 
 if __name__ == "__main__":

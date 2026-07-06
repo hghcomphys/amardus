@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
 import numpy as np
-from typing import NamedTuple, Protocol
+from typing import NamedTuple, Protocol, Any
 from numpy.typing import NDArray
 from numba import njit
 from amardus.atoms import Atoms
@@ -98,6 +98,21 @@ def apply_pbc(
 #     length: FLOAT,
 # ) -> FLOAT:
 #     return rij - length * np.round(rij / length)
+
+
+@njit(inline="always")
+def calculate_distance2(
+        position_i: Array, 
+        position_j: Array,
+        box: Array,
+) -> tuple[FLOAT, Any]:
+    length = box[0, 0], box[1, 1], box[2, 2]
+    dx = apply_pbc(position_j[0] - position_i[0], length[0])
+    dy = apply_pbc(position_j[1] - position_i[1], length[1])
+    dz = apply_pbc(position_j[2] - position_i[2], length[2])
+    r2 = dx * dx + dy * dy + dz * dz
+    aux = dx, dy, dz
+    return r2, aux
 
 
 class SystemInterface(Protocol):

@@ -4,7 +4,7 @@ from numba import njit
 from typing import NamedTuple
 from dataclasses import dataclass, field
 from amardus.system import System
-from amardus.neighbors import apply_pbc
+from amardus.neighbors import calculate_distance2
 from amardus.parameters import FLOAT, Array, get_default_unit
 from amardus.potentials.interface import ForceFieldInterface
 
@@ -34,15 +34,14 @@ class LennardJonesParams(NamedTuple):
         epsilon: list[float],
         sigma: list[float],
     ) -> LennardJonesParams:
+        epsilon = np.array(epsilon, dtype=FLOAT)  # pyright: ignore
+        sigma = np.array(sigma, dtype=FLOAT)  # pyright: ignore
 
-        epsilon = np.array(epsilon, dtype=FLOAT)
-        sigma = np.array(sigma, dtype=FLOAT)
-
-        epsilon_matrix = np.sqrt(epsilon[:, None] * epsilon[None, :])
-        sigma_matrix = 0.5 * (sigma[:, None] + sigma[None, :])
+        epsilon_matrix = np.sqrt(epsilon[:, None] * epsilon[None, :])  # pyright: ignore
+        sigma_matrix = 0.5 * (sigma[:, None] + sigma[None, :])  # pyright: ignore
 
         return cls(epsilon=epsilon_matrix, sigma=sigma_matrix)
-    
+
 
 @njit
 def _compute_lj_forces(
@@ -58,7 +57,6 @@ def _compute_lj_forces(
     pos = sys.atoms.positions
     atom_types = sys.atoms.atom_types
     cutoff2 = cutoff_radius**2
-    length = box[0, 0], box[1, 1], box[2, 2]
     num_atoms = len(pos)
 
     epsilon, sigma = params.epsilon, params.sigma
@@ -71,17 +69,14 @@ def _compute_lj_forces(
     e4s12 = FLOAT(4.0) * epsilon * sigma12
 
     for ni in range(num_atoms):
-        ai = atom_types[ni] 
+        ai = atom_types[ni]
 
         for j in range(neighbors.num_neighbors_per_atom[ni]):
             nj = neighbors.neighbor_index[ni, j]
             aj = atom_types[nj]
 
             if ni < nj:
-                dx = apply_pbc(pos[nj, 0] - pos[ni, 0], length[0])
-                dy = apply_pbc(pos[nj, 1] - pos[ni, 1], length[1])
-                dz = apply_pbc(pos[nj, 2] - pos[ni, 2], length[2])
-                r2 = dx * dx + dy * dy + dz * dz
+                r2, (dx, dy, dz) = calculate_distance2(pos[ni], pos[nj], box)
                 if r2 > cutoff2:
                     continue
 
@@ -102,4 +97,4 @@ def _compute_lj_forces(
                 forces[nj, 2] -= fij_z
                 energy[0] += e4s12[ai][aj] * r12inv - e4s6[ai][aj] * r6inv
                 virial[0] += dx * fij_x + dy * fij_y + dz * fij_z
-
+    # virial[0] -= np.sum(forces * pos)

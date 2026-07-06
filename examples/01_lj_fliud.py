@@ -1,6 +1,7 @@
 import numpy as np
 from ase.io import read as read_ase
 from ase import Atoms as AseAtoms
+from ase.build import bulk
 from ase.md.velocitydistribution import (
     MaxwellBoltzmannDistribution,
     Stationary,
@@ -35,7 +36,8 @@ def main() -> None:
     # ewald_alpha=3.5 / cutoff
     # ewald_kmax=2
 
-    atoms_ase: AseAtoms = read_ase("argon-neon.xyz")
+    # atoms_ase: AseAtoms = read_ase("argon-neon.xyz")
+    atoms_ase: AseAtoms = bulk("Ar", "fcc", a=5.385, cubic=True).repeat((6, 6, 6))
     MaxwellBoltzmannDistribution(
         atoms_ase,
         temperature_K=temperature / unit.kelvin,
@@ -70,7 +72,7 @@ def main() -> None:
             BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
-    integrator = LangevinIntegrator(
+    lagevin = LangevinIntegrator(
         time_step=time_step,
         damping_time=10 * time_step, 
         temperature=temperature,
@@ -78,14 +80,14 @@ def main() -> None:
             BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
-    # print(integrator)
+    # print(verlet)
 
     state = StateReporter(interval=100)
     xyz = XyzReporter("out.xyz", atom_types_map, interval=1000)
 
     simulation = Simulation(
         system,
-        verlet,
+        lagevin,
         forcefields=[lennard_jones],
         reporters=[state, xyz],
     )

@@ -3,7 +3,7 @@ import math
 import numpy as np
 from numba import njit
 from amardus.system import System
-from amardus.neighbors import apply_pbc
+from amardus.neighbors import calculate_distance2
 from amardus.parameters import FLOAT, get_default_unit
 
 KE = get_default_unit().coulomb
@@ -30,18 +30,15 @@ def _compute_ewald_real_forces(
     pos = atoms.positions
     charge = atoms.charges
     cutoff2 = cutoff_radius**2
-    length = box[0, 0], box[1, 1], box[2, 2]
     num_atoms = pos.shape[0] 
 
     for ni in range(num_atoms):
+
         for j in range(neighbors.num_neighbors_per_atom[ni]):
             nj = neighbors.neighbor_index[ni, j]
 
+            r2, (dx, dy, dz) = calculate_distance2(pos[ni], pos[nj], box)
             if ni < nj:
-                dx = apply_pbc(pos[nj, 0] - pos[ni, 0], length[0])
-                dy = apply_pbc(pos[nj, 1] - pos[ni, 1], length[1])
-                dz = apply_pbc(pos[nj, 2] - pos[ni, 2], length[2])
-                r2 = dx * dx + dy * dy + dz * dz
                 if r2 > cutoff2:
                     continue
 

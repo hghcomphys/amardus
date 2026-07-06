@@ -5,7 +5,7 @@ from numba import njit
 from dataclasses import dataclass, field
 from amardus.parameters import FLOAT
 from amardus.system import System
-from amardus.neighbors import apply_pbc
+from amardus.neighbors import calculate_distance2
 from amardus.potentials.interface import ForceFieldInterface
 
 
@@ -27,6 +27,10 @@ class EAMPotential(ForceFieldInterface):
     cutoff_radius: float
 
     def compute_forces(self, sys: System) -> None:
+        assert (
+            np.sum(sys.atoms.atom_types) == 0 
+        ), f"{self.__class__.__name__}: only single type atom is supported!"
+
         sys.atoms.forces[:] = FLOAT(0.0)
         sys.energy[0] = FLOAT(0.0)
         sys.virial[0] = FLOAT(0.0)
@@ -34,74 +38,117 @@ class EAMPotential(ForceFieldInterface):
         _compute_eam_forces(sys, self.params, self.cutoff_radius)
 
 
+@njit
 def _compute_eam_forces(
     sys: System,
     params: EAMParams,
     cutoff_radius: float,
 ) -> None:
-    # virial = sys.virial
-    # forces = sys.atoms.forces
     # atom_types = sys.atoms.atom_types
+    virial = sys.virial
+    forces = sys.atoms.forces
     box = sys.atoms.box
     energy = sys.energy
     neighbors = sys.neighbors
     pos = sys.atoms.positions
     cutoff2 = cutoff_radius**2
-    length = box[0, 0], box[1, 1], box[2, 2]
     num_atoms = len(pos)
 
     rho = np.zeros(num_atoms, dtype=FLOAT)
-    # dF = np.zeros(num_atoms, dtype=FLOAT)
+    drho = np.zeros((num_atoms, 3), dtype=FLOAT)
 
     for ni in range(num_atoms):
-        # ai = atom_types[ni] 
+        # ai = atom_types[ni]
 
         for j in range(neighbors.num_neighbors_per_atom[ni]):
             nj = neighbors.neighbor_index[ni, j]
             # aj = atom_types[nj]
 
             if ni < nj:
-                dx = apply_pbc(pos[nj, 0] - pos[ni, 0], length[0])
-                dy = apply_pbc(pos[nj, 1] - pos[ni, 1], length[1])
-                dz = apply_pbc(pos[nj, 2] - pos[ni, 2], length[2])
-                r2 = dx * dx + dy * dy + dz * dz
+                r2, (dx, dy, dz) = calculate_distance2(pos[ni], pos[nj], box)
                 if r2 > cutoff2:
                     continue
 
                 r = math.sqrt(r2)
-                dens = params.A**2 * electron_density(r, params)
-                rho[ni] += dens 
-                rho[nj] += dens 
-                energy[0] += pair_potential(r, params) 
-                
+                r_inv = 1.0 / r
+                drdx = dx * r_inv
+                drdy = dy * r_inv
+                drdz = dz * r_inv
 
-        
+                # Calculate electron density
+                if r < params.d:
+                    phi, dphidr = _electronic_density_function(r, params)
+
+                    rho[ni] += phi
+                    rho[nj] += phi
+
+                    drho_x = dphidr * drdx
+                    drho_y = dphidr * drdy
+                    drho_z = dphidr * drdz
+
+                    drho[ni, 0] += drho_x
+                    drho[ni, 1] += drho_y
+                    drho[ni, 2] += drho_z
+                    drho[nj, 0] -= drho_x
+                    drho[nj, 1] -= drho_y
+                    drho[nj, 2] -= drho_z
+
+                # Calculate pair potential
+                if r < params.c:
+                    pair_pot, dVdr = _pair_potential(r, params)
+
+                    fx = dVdr * drdx
+                    fy = dVdr * drdy
+                    fz = dVdr * drdz
+
+                    forces[ni, 0] += fx
+                    forces[ni, 1] += fy
+                    forces[ni, 2] += fz
+                    forces[nj, 0] -= fx
+                    forces[nj, 1] -= fy
+                    forces[nj, 2] -= fz
+                    energy[0] += pair_pot
+
     for ni in range(num_atoms):
-        # ai = atom_types[ni] 
-        # dF[ni] = -FLOAT(0.5) / math.sqrt(rho[ni]) if rho[ni] > 0 else FLOAT(0.0)
-        energy[0] += embedding_function(rho[ni])
+        # ai = atom_types[ni]
+
+        if rho[ni] > 1e-14:
+            eng, dFdrho = _embedding_function(rho[ni])
+
+            forces[ni, 0] += dFdrho * drho[ni, 0]
+            forces[ni, 1] += dFdrho * drho[ni, 1]
+            forces[ni, 2] += dFdrho * drho[ni, 2]
+            energy[0] -= eng
+
+    virial[0] -= np.sum(forces * pos)
 
 
 @njit(inline="always")
-def electron_density(r: float, ps: EAMParams) -> float:
-    if r > ps.d: 
-        return 0.0
-    dr = r - ps.d
-    dr2 = dr * dr
-    return dr2 * (1.0 + ps.B * dr2 / ps.d)
-
-
-@njit(inline="always") 
-def pair_potential(r: float, ps: EAMParams) -> float:
-    if r > ps.c: 
-        return 0.0
+def _pair_potential(r: float, ps: EAMParams) -> tuple[float, float]:
     dr = r - ps.c
     r2 = r * r
-    return dr * dr * (ps.c0 + ps.c1 * r + ps.c2 * r2 + ps.c3 * r2 * r + ps.c4 * r2 * r2) 
+    r3 = r2 * r
+    term1 = ps.c0 + ps.c1 * r + ps.c2 * r2 + ps.c3 * r3 * r + ps.c4 * r2 * r2
+    term2 = ps.c1 + 2.0 * ps.c2 * r + 3.0 * ps.c3 * r2 + 4.0 * ps.c4 * r3
+    V = dr * dr * term1
+    dVdr = dr * (2.0 * term1 + dr * term2)
+    return V, dVdr
 
 
 @njit(inline="always")
-def embedding_function(rho):
-    return math.sqrt(rho)
+def _electronic_density_function(r: float, ps: EAMParams) -> tuple[float, float]:
+    dr = r - ps.d
+    dr2 = dr * dr
+    B2 = ps.B * ps.B
+    A2 = ps.A * ps.A
+    F = A2 * dr2 * (1.0 + B2 * dr2)
+    dF = A2 * dr * (2.0 + B2 * 4.0 * dr2 * dr)
+    return F, dF
 
 
+@njit(inline="always")
+def _embedding_function(rho) -> tuple[float, float]:
+    term1 = math.sqrt(rho)
+    F = term1
+    dF = 0.5 / term1
+    return F, dF
