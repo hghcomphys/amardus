@@ -63,4 +63,4 @@ def get_pressure(sys: System) -> float:
     mass, vel = sys.atoms.masses.reshape(-1, 1), sys.atoms.velocities
     vol = np.linalg.det(sys.atoms.box)
     virial = sys.virial
-    return (np.sum(mass * vel * vel) - virial[0]) / (FLOAT(3.0) * vol)
+    return (np.sum(mass * vel * vel) + virial[0]) / (FLOAT(3.0) * vol)

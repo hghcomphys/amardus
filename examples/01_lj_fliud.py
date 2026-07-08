@@ -36,8 +36,8 @@ def main() -> None:
     # ewald_alpha=3.5 / cutoff
     # ewald_kmax=2
 
-    # atoms_ase: AseAtoms = read_ase("argon-neon.xyz")
-    atoms_ase: AseAtoms = bulk("Ar", "fcc", a=5.385, cubic=True).repeat((6, 6, 6))
+    atoms_ase: AseAtoms = read_ase("argon-neon.xyz")
+    # atoms_ase: AseAtoms = bulk("Ar", "fcc", a=5.385, cubic=True).repeat((6, 6, 6))
     MaxwellBoltzmannDistribution(
         atoms_ase,
         temperature_K=temperature / unit.kelvin,
@@ -95,8 +95,7 @@ def main() -> None:
 
     # simulation.step()
     simulation.step(1_000)
-    # simulation.reporters.append(xyz)
-    # simulation.step(50_000)
+    # simulation.step(500_000)
 
     # Heating up system
     # verlet = VerletIntegrator(time_step)

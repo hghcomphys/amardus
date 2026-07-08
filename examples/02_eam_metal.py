@@ -75,8 +75,8 @@ def main() -> None:
     verlet = VerletIntegrator(
         time_step=time_step,
         system_couplings=[
-            # BrendsenThermostat(temperature, thermostat_coupling_time),
-            # BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+            BrendsenThermostat(temperature, thermostat_coupling_time),
+            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
     # print(verlet)
@@ -94,8 +94,7 @@ def main() -> None:
 
     simulation.step()
     simulation.step(1_000)
-    # simulation.reporters.append(xyz)
-    simulation.step(50_000)
+    simulation.step(5_000)
 
 
 if __name__ == "__main__":

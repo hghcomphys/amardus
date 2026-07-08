@@ -96,5 +96,5 @@ def _compute_lj_forces(
                 forces[nj, 1] -= fij_y
                 forces[nj, 2] -= fij_z
                 energy[0] += e4s12[ai][aj] * r12inv - e4s6[ai][aj] * r6inv
-                virial[0] += dx * fij_x + dy * fij_y + dz * fij_z
-    # virial[0] -= np.sum(forces * pos)
+                virial[0] -= dx * fij_x + dy * fij_y + dz * fij_z
+    # virial[0] += np.sum(forces * pos)
