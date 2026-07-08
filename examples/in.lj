@@ -78,6 +78,7 @@ thermo_style custom step temp press pe ke etotal lx density
 thermo ${iofrq}         # report instantaneous thermo values every 2000 steps
 thermo_modify norm yes   # normalize thermo properties by number of atoms (yes or no)
 
+dump              1 all xyz 1000 out_ref.xyz
 # dump            1 all custom ${iofrq} traj_0.1.lammpstrj id type element xu yu zu vx vy vz
 # dump_modify     1 element Ar sort id
 
