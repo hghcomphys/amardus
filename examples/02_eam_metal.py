@@ -29,7 +29,7 @@ def main() -> None:
 
     unit = get_default_unit()
     time_step = 0.001 * unit.picoseconds
-    cutoff = 6.0 * unit.angstrom
+    cutoff = 5.3 * unit.angstrom 
     temperature = 300.0 * unit.kelvin
     pressure = 1.0 * unit.bar
     thermostat_coupling_time = 10 * time_step
@@ -67,7 +67,7 @@ def main() -> None:
     system = System.create(
         atoms,
         neighbor_cutoff=cutoff,
-        neighbor_skin=1.0 * unit.angstrom,
+        neighbor_skin=2.0 * unit.angstrom,
         neighbor_max_atoms=300,
     )
     # print(system)
@@ -75,8 +75,8 @@ def main() -> None:
     verlet = VerletIntegrator(
         time_step=time_step,
         system_couplings=[
-            BrendsenThermostat(temperature, thermostat_coupling_time),
-            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+            # BrendsenThermostat(temperature, thermostat_coupling_time),
+            # BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
     # print(verlet)

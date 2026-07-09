@@ -30,9 +30,10 @@ minimize        1e-12 1e-12 1000 10000
 # Initialize temperature
 velocity        all create 300.0 12345 mom yes rot no
 
-# NPT equilibration
-fix             1 all npt temp 300 300 0.1 iso 1 1 1.0 
+# equilibration
+fix             1 all nve 
 # fix             1 all nvt temp 300 300 0.1
+# fix             1 all npt temp 300 300 0.1 iso 1 1 1.0 
 
 thermo          100
 thermo_style    custom step temp press pe ke etotal lx density 

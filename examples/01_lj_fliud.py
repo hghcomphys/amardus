@@ -60,7 +60,7 @@ def main() -> None:
     system = System.create(
         atoms,
         neighbor_cutoff=cutoff,
-        neighbor_skin=1.0 * unit.angstrom,
+        neighbor_skin=2.0 * unit.angstrom,
         neighbor_max_atoms=300,
     )
     # print(system)

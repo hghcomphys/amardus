@@ -27,18 +27,19 @@ class StateReporter(ReporterInteface):
         self.unit = get_default_unit()
         self.interval = interval
         self.show_header: bool = show_header
+        width = 14
         self.header: str = (
             f"{'Step':8}"
-            f" {'Temp':10}"
-            f" {'Pres':10}"
-            f" {'PotE':10}"
-            f" {'KinE':10}"
-            f" {'TotE':10}"
-            # f" {'UpdateNb':10}"
-            f" {'AvgNb':10}"
-            # f" {'AvgCell':10}"
-            # f" {'Box':10}"
-            f" {'Dens':10}"
+            f" {'Temp':{width}}"
+            f" {'Press':{width}}"
+            f" {'PotEng':{width}}"
+            f" {'KinEng':{width}}"
+            f" {'TotEng':{width}}"
+            # f" {'UpdateNb':{width}}"
+            f" {'AvgNb':{width}}"
+            # f" {'AvgCell':{width}}"
+            # f" {'Box':{width}}"
+            f" {'Density':{width}}"
         )
 
     def collect(
@@ -61,19 +62,19 @@ class StateReporter(ReporterInteface):
         pres = get_pressure(sys)
         vol = np.linalg.det(sys.atoms.box)
         dens = np.sum(sys.atoms.masses) / vol
-
+        width, precision = 14, 4 
         print(
             f"{current_step:<8}"
-            f" {temp / unit.kelvin:<10.4f}"
-            f" {pres / unit.bar:<10.4f}"
-            f" {pe / unit.electronvolt:<10.4f}"
-            f" {ke / unit.electronvolt:<10.4f}"
-            f" {(ke + pe) / unit.electronvolt:<10.4f}"
+            f" {temp / unit.kelvin:<{width}.{precision}f}"
+            f" {pres / unit.bar:<{width}.{precision}f}"
+            f" {pe / unit.electronvolt:<{width}.{precision}f}"
+            f" {ke / unit.electronvolt:<{width}.{precision}f}"
+            f" {(ke + pe) / unit.electronvolt:<{width}.{precision}f}"
             # f" {num_neighbor_updates:<10}"
-            f" {sys.neighbors.num_neighbors_per_atom.mean():<10.2f}"
-            # f" {sys.cells.num_atoms_per_cell.mean():<10.2f}"
-            # f" {math.pow(vol, 1/3):<10.4f}"
-            f" {dens / unit.grcm3:<10.6f}"
+            f" {sys.neighbors.num_neighbors_per_atom.mean():<{width}.{precision}f}"
+            # f" {sys.cells.num_atoms_per_cell.mean():<{width}.{precision}f}"
+            # f" {math.pow(vol, 1/3):<{width}.{precision}f}"
+            f" {dens / unit.grcm3:<{width}.{precision}f}"
         )
 
     def __repr__(self) -> str:

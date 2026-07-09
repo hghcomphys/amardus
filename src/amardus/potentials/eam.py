@@ -150,7 +150,7 @@ def _compute_eam_forces(
         forces[ni, 2] += dFdrho * drho[ni, 2]
         energy[0] -= eng
 
-    virial[0] += np.sum(forces * pos)
+    virial[0] -= np.sum(forces * pos)
 
 
 @njit(inline="always")
