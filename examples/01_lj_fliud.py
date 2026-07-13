@@ -8,7 +8,7 @@ from ase.md.velocitydistribution import (
 )
 from amardus import Atoms, System, Simulation
 from amardus.parameters import get_default_unit
-from amardus.reporters import StateReporter, XyzReporter
+from amardus.reporters import StateReporter, XyzReporter, CSVReporter
 from amardus.integration import LangevinIntegrator, VerletIntegrator
 from amardus.coupling import BrendsenThermostat, BrendsenBarostat
 from amardus.potentials import LennardJonesPotential, LennardJonesParams
@@ -77,25 +77,26 @@ def main() -> None:
         damping_time=10 * time_step, 
         temperature=temperature,
         system_couplings=[
-            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+            # BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
     # print(verlet)
 
     state = StateReporter(interval=100)
     xyz = XyzReporter("out.xyz", atom_types_map, interval=1000)
+    csv = CSVReporter("/tmp/thermo.csv", interval=1000)
 
     simulation = Simulation(
         system,
-        lagevin,
+        verlet,
         forcefields=[lennard_jones],
-        reporters=[state, xyz],
+        reporters=[state, xyz, csv],
     )
     print(simulation)
 
     # simulation.step()
     simulation.step(1_000)
-    # simulation.step(500_000)
+    simulation.step(500_000)
 
     # Heating up system
     # verlet = VerletIntegrator(time_step)

@@ -8,7 +8,7 @@ from ase.md.velocitydistribution import (
 )
 from amardus import Atoms, System, Simulation
 from amardus.parameters import get_default_unit
-from amardus.reporters import StateReporter, XyzReporter
+from amardus.reporters import StateReporter, XyzReporter, CSVReporter
 from amardus.integration import VerletIntegrator
 from amardus.coupling import BrendsenThermostat, BrendsenBarostat
 from amardus.potentials import EAMPotential, EAMParams
@@ -33,7 +33,7 @@ def main() -> None:
     temperature = 300.0 * unit.kelvin
     pressure = 1.0 * unit.bar
     thermostat_coupling_time = 10 * time_step
-    barostat_coupling_time = 10 * time_step
+    barostat_coupling_time = 100 * time_step
     # ewald_alpha=3.5 / cutoff
     # ewald_kmax=2
 
@@ -75,26 +75,27 @@ def main() -> None:
     verlet = VerletIntegrator(
         time_step=time_step,
         system_couplings=[
-            # BrendsenThermostat(temperature, thermostat_coupling_time),
-            # BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+            BrendsenThermostat(temperature, thermostat_coupling_time),
+            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
         ],
     )
     # print(verlet)
 
     state = StateReporter(interval=100)
     xyz = XyzReporter("fe.xyz", atom_types_map, interval=1000)
+    csv = CSVReporter("/tmp/thermo.csv", interval=200)
 
     simulation = Simulation(
         system,
         verlet,
         forcefields=[eam],
-        reporters=[state, xyz],
+        reporters=[state, xyz, csv],
     )
     print(simulation)
 
     simulation.step()
     simulation.step(1_000)
-    simulation.step(5_000)
+    simulation.step(10_000)
 
 
 if __name__ == "__main__":

@@ -62,7 +62,7 @@ class StateReporter(ReporterInteface):
         pres = get_pressure(sys)
         vol = np.linalg.det(sys.atoms.box)
         dens = np.sum(sys.atoms.masses) / vol
-        width, precision = 14, 4 
+        width, precision = 14, 6
         print(
             f"{current_step:<8}"
             f" {temp / unit.kelvin:<{width}.{precision}f}"
@@ -78,13 +78,13 @@ class StateReporter(ReporterInteface):
         )
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(interval={self.interval})" 
+        return f"{self.__class__.__name__}(interval={self.interval})"
 
 
 class XyzReporter(ReporterInteface):
 
     def __init__(
-        self, 
+        self,
         filename: PathLike,
         atom_types_map: dict[str, int],
         interval: int = 1000,
@@ -99,10 +99,10 @@ class XyzReporter(ReporterInteface):
     def collect(self, sys: System, current_step: int) -> None:
 
         if current_step % self.interval != 0:
-            return 
-        
+            return
+
         pos = sys.atoms.positions
-        num_atoms = pos.shape[0] 
+        num_atoms = pos.shape[0]
         unit = self.unit
 
         self.file.write(f"{num_atoms}\n\n")
@@ -123,4 +123,66 @@ class XyzReporter(ReporterInteface):
             self.file.close()
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(interval={self.interval})" 
+        return f"{self.__class__.__name__}(interval={self.interval})"
+
+
+class CSVReporter(ReporterInteface):
+
+    def __init__(
+        self,
+        filename: PathLike,
+        interval: int = 1,
+    ) -> None:
+        self.unit = get_default_unit()
+        self.filename = Path(filename)
+        self.interval = interval
+        self.show_header: bool = True
+        self.header: str = ",".join(
+            (
+                "step",
+                "temp",
+                "press",
+                "poteng",
+                "kineng",
+                "toteng",
+                "density",
+            )
+        )
+
+    def collect(
+        self,
+        sys: System,
+        current_step: int,
+    ) -> None:
+
+        if current_step % self.interval != 0:
+            return
+
+        if self.show_header:
+            with open(str(self.filename), "w") as file:
+                file.write(self.header + "\n")
+            self.show_header = False
+
+        unit = self.unit
+        ke = get_kinetic_energy(sys)
+        pe = sys.energy[0]
+        temp = get_temperature(sys)
+        pres = get_pressure(sys)
+        vol = np.linalg.det(sys.atoms.box)
+        dens = np.sum(sys.atoms.masses) / vol
+        state = ",".join(
+            (
+                f"{current_step}",
+                f"{temp / unit.kelvin}",
+                f"{pres / unit.bar}",
+                f"{pe / unit.electronvolt}",
+                f"{ke / unit.electronvolt}",
+                f"{(ke + pe) / unit.electronvolt}",
+                f"{dens / unit.grcm3}",
+            )
+        )
+        with open(str(self.filename), "a") as file:
+            file.write(state + "\n")
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(interval={self.interval})"
