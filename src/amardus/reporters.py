@@ -36,7 +36,7 @@ class StateReporter(ReporterInteface):
             f" {'KinEng':{width}}"
             f" {'TotEng':{width}}"
             # f" {'UpdateNb':{width}}"
-            f" {'AvgNb':{width}}"
+            f" {'AvgNgh':{width}}"
             # f" {'AvgCell':{width}}"
             # f" {'Box':{width}}"
             f" {'Density':{width}}"
@@ -139,13 +139,14 @@ class CSVReporter(ReporterInteface):
         self.show_header: bool = True
         self.header: str = ",".join(
             (
-                "step",
-                "temp",
-                "press",
-                "poteng",
-                "kineng",
-                "toteng",
-                "density",
+                "Step",
+                "Temp",
+                "Press",
+                "PotEng",
+                "KinEng",
+                "TotEng",
+                # "AvgNgh",
+                "Density",
             )
         )
 
@@ -178,6 +179,7 @@ class CSVReporter(ReporterInteface):
                 f"{pe / unit.electronvolt}",
                 f"{ke / unit.electronvolt}",
                 f"{(ke + pe) / unit.electronvolt}",
+                # f" {sys.neighbors.num_neighbors_per_atom.mean()}",
                 f"{dens / unit.grcm3}",
             )
         )

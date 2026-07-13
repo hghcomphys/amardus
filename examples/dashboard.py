@@ -7,9 +7,10 @@ st.title("MD Simulation Monitor")
 
 placeholder = st.empty()
 
-# cols = ["kineng", "poteng", "toteng"]
-# cols = ["press"] 
-cols = ["density"] 
+# cols = ["PotEng", "TotEng", "KinEng"]
+cols = ["Press"] 
+# cols = ["Density"] 
+# cols = ["AvgNgh"] 
 
 while True:
     try:
@@ -17,9 +18,8 @@ while True:
 
         with placeholder.container():
             st.line_chart(
-                df.set_index("step")[cols]
+                df.set_index("Step")[cols]
             )
-
         time.sleep(0.5)
 
     except Exception:

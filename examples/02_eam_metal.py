@@ -83,7 +83,7 @@ def main() -> None:
 
     state = StateReporter(interval=100)
     xyz = XyzReporter("fe.xyz", atom_types_map, interval=1000)
-    csv = CSVReporter("/tmp/thermo.csv", interval=200)
+    csv = CSVReporter("/tmp/thermo.csv", interval=500)
 
     simulation = Simulation(
         system,
