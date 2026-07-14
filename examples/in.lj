@@ -21,7 +21,7 @@ variable fccl        equal 5.385    # lattice length
 # Specify high-level simulation style
 ##############################################
 
-units        metal                      # Specify units to use
+units        metal                     # Specify units to use
 atom_style   atomic                    # Only store info on atom coords and type - no bonded info
 atom_modify  sort 0 0.0                # Maintain atom ordering when printing information
 atom_modify  map array                 # Need to maintain ordering
@@ -76,7 +76,7 @@ fix 3 all press/berendsen iso ${pressure} ${pressure} ${Pdamp}
 
 thermo_style custom step temp press pe ke etotal lx density 
 thermo ${iofrq}         # report instantaneous thermo values every 2000 steps
-thermo_modify norm yes   # normalize thermo properties by number of atoms (yes or no)
+#thermo_modify norm yes   # normalize thermo properties by number of atoms (yes or no)
 
 dump              1 all xyz 1000 out_ref.xyz
 # dump            1 all custom ${iofrq} traj_0.1.lammpstrj id type element xu yu zu vx vy vz

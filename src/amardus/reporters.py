@@ -2,6 +2,8 @@ import math
 import numpy as np
 from pathlib import Path
 from typing import Protocol
+
+from pandas._libs import interval
 from amardus.parameters import get_default_unit
 from amardus.system import (
     System,
@@ -23,10 +25,12 @@ class StateReporter(ReporterInteface):
         self,
         interval: int = 1,
         show_header: bool = True,
+        normalize: bool = False,
     ) -> None:
         self.unit = get_default_unit()
         self.interval = interval
         self.show_header: bool = show_header
+        self.normalize = normalize
         width = 14
         self.header: str = (
             f"{'Step':8}"
@@ -52,17 +56,19 @@ class StateReporter(ReporterInteface):
             print(self.header)
             self.show_header = False
 
-        if current_step % self.interval != 0:
+        if  (self.interval <= 0) or (current_step % self.interval != 0):
             return
 
+        norm = len(sys.atoms) if self.normalize else 1.0
+
         unit = self.unit
-        ke = get_kinetic_energy(sys)
-        pe = sys.energy[0]
+        ke = get_kinetic_energy(sys) / norm
+        pe = sys.energy[0] / norm
         temp = get_temperature(sys)
         pres = get_pressure(sys)
         vol = np.linalg.det(sys.atoms.box)
         dens = np.sum(sys.atoms.masses) / vol
-        width, precision = 14, 6
+        width, precision = 14, 8
         print(
             f"{current_step:<8}"
             f" {temp / unit.kelvin:<{width}.{precision}f}"
@@ -98,7 +104,7 @@ class XyzReporter(ReporterInteface):
 
     def collect(self, sys: System, current_step: int) -> None:
 
-        if current_step % self.interval != 0:
+        if  (self.interval <= 0) or (current_step % self.interval != 0):
             return
 
         pos = sys.atoms.positions
@@ -132,10 +138,14 @@ class CSVReporter(ReporterInteface):
         self,
         filename: PathLike,
         interval: int = 1,
+        ignore_first_steps: int = 0,
+        normalize: bool = False,
     ) -> None:
         self.unit = get_default_unit()
         self.filename = Path(filename)
         self.interval = interval
+        self.ignore_first_steps = ignore_first_steps
+        self.normalize = normalize
         self.show_header: bool = True
         self.header: str = ",".join(
             (
@@ -156,7 +166,10 @@ class CSVReporter(ReporterInteface):
         current_step: int,
     ) -> None:
 
-        if current_step % self.interval != 0:
+        if current_step < self.ignore_first_steps:
+            return
+            
+        if  (self.interval <= 0) or (current_step % self.interval != 0):
             return
 
         if self.show_header:
@@ -164,9 +177,11 @@ class CSVReporter(ReporterInteface):
                 file.write(self.header + "\n")
             self.show_header = False
 
+        norm = len(sys.atoms) if self.normalize else 1.0
+
         unit = self.unit
-        ke = get_kinetic_energy(sys)
-        pe = sys.energy[0]
+        ke = get_kinetic_energy(sys) / norm
+        pe = sys.energy[0] / norm
         temp = get_temperature(sys)
         pres = get_pressure(sys)
         vol = np.linalg.det(sys.atoms.box)

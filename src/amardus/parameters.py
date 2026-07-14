@@ -12,17 +12,17 @@ ORDER: Literal["C", "F"] = "C"
 global default_unit
 
 
-class Unit(NamedTuple):  
-    boltzman = 8.617343e-5   # eV/K
-    coulomb = 14.399645478   # eV/(e^2 * A)
-    picoseconds: float = 1.0e3 / 1.018051e1
-    bar: float = 1.0 / 1.602e6
-    grcm3: float = 1.0 / 1.66054
+class MetalUnit(NamedTuple):
+    boltzman = 8.617343e-5  # eV/K
+    coulomb = 14.399645478  # eV/(e^2 * A)
+    picoseconds: float = 98.2269 
+    bar: float = 6.2415e-7
+    grcm3: float = 0.602214
     kelvin: float = 1.0
     electronvolt: float = 1.0
     angstrom: float = 1.0
 
-   
+
 class Parameters(NamedTuple):
     time_step: float
     temperature: float
@@ -39,11 +39,14 @@ class Parameters(NamedTuple):
     coulomb: float
 
 
+Unit = MetalUnit
 default_unit = Unit()
+
 
 def set_default_unit(unit: Unit) -> None:
     global default_unit
     default_unit = unit
+
 
 def get_default_unit() -> Unit:
     global default_unit

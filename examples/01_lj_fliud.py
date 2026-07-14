@@ -65,26 +65,28 @@ def main() -> None:
     )
     # print(system)
 
+    thermostat = BrendsenThermostat(temperature, thermostat_coupling_time)
+    barostat = BrendsenBarostat(pressure, barostat_coupling_time, interval=1, compressibility=1.0 / (1e4 * unit.bar))
     verlet = VerletIntegrator(
         time_step=time_step,
         system_couplings=[
-            BrendsenThermostat(temperature, thermostat_coupling_time),
-            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
-        ],
+            thermostat,
+            barostat,
+            ],
     )
     lagevin = LangevinIntegrator(
         time_step=time_step,
         damping_time=10 * time_step, 
         temperature=temperature,
         system_couplings=[
-            # BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+            barostat,
         ],
     )
     # print(verlet)
 
-    state = StateReporter(interval=100)
-    xyz = XyzReporter("out.xyz", atom_types_map, interval=1000)
-    csv = CSVReporter("/tmp/thermo.csv", interval=1000)
+    state = StateReporter(interval=100, normalize=False)
+    xyz = XyzReporter("out.xyz", atom_types_map, interval=-1)
+    csv = CSVReporter("/tmp/thermo.csv", interval=1000, ignore_first_steps=1000)
 
     simulation = Simulation(
         system,
