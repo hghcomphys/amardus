@@ -107,9 +107,9 @@ def calculate_distance2(
         box: Array,
 ) -> tuple[FLOAT, Any]:
     length = box[0, 0], box[1, 1], box[2, 2]
-    dx = apply_pbc(position_j[0] - position_i[0], length[0])
-    dy = apply_pbc(position_j[1] - position_i[1], length[1])
-    dz = apply_pbc(position_j[2] - position_i[2], length[2])
+    dx = apply_pbc(position_i[0] - position_j[0], length[0])
+    dy = apply_pbc(position_i[1] - position_j[1], length[1])
+    dz = apply_pbc(position_i[2] - position_j[2], length[2])
     r2 = dx * dx + dy * dy + dz * dz
     aux = dx, dy, dz
     return r2, aux

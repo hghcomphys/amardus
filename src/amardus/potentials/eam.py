@@ -28,7 +28,7 @@ class EAMParams(NamedTuple):
 @dataclass
 class RhoArrays:
     rho: Array = field(default_factory=_EMPTY_ARRAY)
-    drho: Array = field(default_factory=_EMPTY_ARRAY)
+    dFdrho: Array = field(default_factory=_EMPTY_ARRAY)
 
 
 @dataclass
@@ -53,7 +53,7 @@ class EAMPotential(ForceFieldInterface):
             num_atoms = len(sys.atoms)
             self.scratch = RhoArrays(
                 rho=np.empty(num_atoms, dtype=FLOAT),
-                drho=np.empty((num_atoms, 3), dtype=FLOAT),
+                dFdrho=np.empty(num_atoms, dtype=FLOAT),
             )
             self.allocate_scratch = False
 
@@ -66,7 +66,7 @@ class EAMPotential(ForceFieldInterface):
             self.params,
             self.cutoff_radius,
             self.scratch.rho,
-            self.scratch.drho,
+            self.scratch.dFdrho,
         )
 
 
@@ -76,7 +76,7 @@ def _compute_eam_forces(
     params: EAMParams,
     cutoff_radius: float,
     rho: Array,
-    drho: Array,
+    dFdrho: Array,
 ) -> None:
     virial = sys.virial
     forces = sys.atoms.forces
@@ -88,7 +88,35 @@ def _compute_eam_forces(
     num_atoms = len(pos)
 
     rho[:] = 0.0
-    drho[:] = 0.0
+    dFdrho[:] = 0.0
+
+    for ni in range(num_atoms):
+        for j in range(neighbors.num_neighbors_per_atom[ni]):
+            nj = neighbors.neighbor_index[ni, j]
+
+            if ni < nj:
+                r2, _ = calculate_distance2(pos[ni], pos[nj], box)
+                if r2 > cutoff2:
+                    continue
+
+                # Electron density
+                if r2 < params.d**2:
+                    r = math.sqrt(r2)
+                    phi, _ = _electronic_density_function(r, params)
+
+                    rho[ni] += phi
+                    rho[nj] += phi
+
+                    
+    for ni in range(num_atoms):
+        if rho[ni] < _ALMOST_ZERO:
+            continue
+        embed_energy, dFdrho_i = _embedding_function(rho[ni])
+        dFdrho[ni] = dFdrho_i
+
+        # Embedding energy
+        energy[0] -= embed_energy
+
 
     for ni in range(num_atoms):
         for j in range(neighbors.num_neighbors_per_atom[ni]):
@@ -105,31 +133,30 @@ def _compute_eam_forces(
                 drdy = dy * r_inv
                 drdz = dz * r_inv
 
-                # Calculate electron density
-                if r < params.d:
-                    phi, dphidr = _electronic_density_function(r, params)
+                # Embedding forces
+                if r2 < params.d**2:
+                    _, dphi_dr = _electronic_density_function(r, params)
 
-                    rho[ni] += phi
-                    rho[nj] += phi
+                    term = (dFdrho[ni] + dFdrho[nj]) * dphi_dr 
+                    fx = term * drdx
+                    fy = term * drdy
+                    fz = term * drdz
 
-                    drho_x = dphidr * drdx
-                    drho_y = dphidr * drdy
-                    drho_z = dphidr * drdz
-
-                    drho[ni, 0] -= drho_x
-                    drho[ni, 1] -= drho_y
-                    drho[ni, 2] -= drho_z
-                    drho[nj, 0] += drho_x
-                    drho[nj, 1] += drho_y
-                    drho[nj, 2] += drho_z
-
-                # Calculate pair potential
+                    forces[ni, 0] += fx 
+                    forces[ni, 1] += fy 
+                    forces[ni, 2] += fz 
+                    forces[nj, 0] -= fx
+                    forces[nj, 1] -= fy
+                    forces[nj, 2] -= fz
+                    virial[0] += fx * dx + fy * dy + fx * dz
+                    
+                # Pair potential and forces
                 if r < params.c:
                     pair_pot, dVdr = _pair_potential(r, params)
 
-                    fx = dVdr * drdx
-                    fy = dVdr * drdy
-                    fz = dVdr * drdz
+                    fx = -dVdr * drdx
+                    fy = -dVdr * drdy
+                    fz = -dVdr * drdz
 
                     forces[ni, 0] += fx
                     forces[ni, 1] += fy
@@ -138,19 +165,11 @@ def _compute_eam_forces(
                     forces[nj, 1] -= fy
                     forces[nj, 2] -= fz
                     energy[0] += pair_pot
+                    virial[0] += fx * dx + fy * dy + fx * dz
 
-    for ni in range(num_atoms):
-        if rho[ni] < _ALMOST_ZERO:
-            continue
-
-        eng, dFdrho = _embedding_function(rho[ni])
-
-        forces[ni, 0] += dFdrho * drho[ni, 0]
-        forces[ni, 1] += dFdrho * drho[ni, 1]
-        forces[ni, 2] += dFdrho * drho[ni, 2]
-        energy[0] -= eng
-
-    virial[0] -= np.sum(forces * pos)
+    # IMPORTANT
+    # virial[0] += np.sum(forces * pos) 
+    # For periodic systems these two Virial equations is not generally equivalent.
 
 
 @njit(inline="always")

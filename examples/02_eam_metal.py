@@ -29,7 +29,7 @@ def main() -> None:
 
     unit = get_default_unit()
     time_step = 0.001 * unit.picoseconds
-    cutoff = 5.3 * unit.angstrom 
+    cutoff = 6.0 * unit.angstrom 
     temperature = 300.0 * unit.kelvin
     pressure = 1.0 * unit.bar
     thermostat_coupling_time = 10 * time_step
@@ -60,7 +60,7 @@ def main() -> None:
             c3=-0.303077 * unit.electronvolt * unit.angstrom**-5,
             c4=-0.085092 * unit.electronvolt * unit.angstrom**-6,
             B=0.0 * unit.angstrom**-2,
-        )
+        ),
     )
     # print(lennard_jones)
 
@@ -72,16 +72,23 @@ def main() -> None:
     )
     # print(system)
 
+    themorstat = BrendsenThermostat(temperature, thermostat_coupling_time)
+    barostat = BrendsenBarostat(
+            pressure, 
+            barostat_coupling_time, 
+            interval=2, 
+            compressibility= 1.0 / (1.694e6 * unit.bar),
+    )
     verlet = VerletIntegrator(
         time_step=time_step,
         system_couplings=[
-            BrendsenThermostat(temperature, thermostat_coupling_time),
-            BrendsenBarostat(pressure, barostat_coupling_time, interval=10),
+            themorstat,
+            barostat,
         ],
     )
     # print(verlet)
 
-    state = StateReporter(interval=100)
+    state = StateReporter(interval=100, normalize=False)
     xyz = XyzReporter("fe.xyz", atom_types_map, interval=1000)
     csv = CSVReporter("/tmp/thermo.csv", interval=500)
 
@@ -93,9 +100,9 @@ def main() -> None:
     )
     print(simulation)
 
-    simulation.step()
-    simulation.step(1_000)
+    simulation.step(10)
     simulation.step(10_000)
+    simulation.step(100_000)
 
 
 if __name__ == "__main__":
