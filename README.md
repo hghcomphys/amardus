@@ -11,7 +11,7 @@ Features:
 - [x] Verlet, langevin, and Leapfrog integrators
 - [x] NVE, NVT, and NPT ensembles (Brendsen)
 - [x] Non-bonded short-range interaction (Lennard-Jones)
-- [ ] Metals (EAM) 
+- [x] Metals (EAM potential) 
 - [ ] Molecules 
 - [ ] Bonded interactions (bonds, angles, dihedrals)
 - [ ] Long-range interaction (Coulomb)
