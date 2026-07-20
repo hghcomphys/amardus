@@ -1,30 +1,22 @@
 import numpy as np
-from ase.io import read as read_ase
 from ase import Atoms as AseAtoms
 from ase.build import bulk
 from ase.md.velocitydistribution import (
     MaxwellBoltzmannDistribution,
     Stationary,
 )
-from amardus import Atoms, System, Simulation
+from amardus import BANNER, Atoms, System, Simulation
 from amardus.parameters import get_default_unit
 from amardus.reporters import StateReporter, XyzReporter, CSVReporter
-from amardus.integration import LangevinIntegrator, VerletIntegrator
+from amardus.integration import VerletIntegrator
 from amardus.coupling import BrendsenThermostat, BrendsenBarostat
 from amardus.potentials import LennardJonesPotential, LennardJonesParams
 
 
 def main() -> None:
 
-    print(r"""
-      _                            _
-     / \   _ __ ___   __ _ _ __ __| |_   _ ___
-    / _ \ | '_ ` _ \ / _` | '__/ _` | | | / __|
-   / ___ \| | | | | | (_| | | | (_| | |_| \__ \
-  /_/   \_\_| |_| |_|\__,_|_|  \__,_|\__,_|___/
-           Molecular Dynamics Engine
--------------------------------------------------
-""")
+    print(BANNER)
+    print("Description: MD simulation of Ar atoms using Lennard-Jones potential.")
 
     unit = get_default_unit()
     time_step = 0.001 * unit.picoseconds
@@ -36,7 +28,6 @@ def main() -> None:
     # ewald_alpha=3.5 / cutoff
     # ewald_kmax=2
 
-    # atoms_ase: AseAtoms = read_ase("argon-neon.xyz")
     atoms_ase: AseAtoms = bulk("Ar", "fcc", a=5.385, cubic=True).repeat((6, 6, 6))
     MaxwellBoltzmannDistribution(
         atoms_ase,
@@ -44,15 +35,15 @@ def main() -> None:
         rng=np.random.default_rng(1234),
     )
     Stationary(atoms_ase)
-    atom_types_map = {"Ar": 0, "Ne": 1}
+    atom_types_map = {"Ar": 0}
     atoms = Atoms.from_ase(atoms_ase, atom_types_map)
     # print(atoms)
 
     lennard_jones = LennardJonesPotential(
         cutoff_radius=cutoff,
         params=LennardJonesParams.from_list(
-            epsilon=[e * unit.electronvolt for e in [0.01032, 0.00307]],
-            sigma=[s * unit.angstrom for s in [3.405, 2.789]],
+            epsilon=[e * unit.electronvolt for e in [0.01032]],
+            sigma=[s * unit.angstrom for s in [3.405]],
         ),
     )
     # print(lennard_jones)
@@ -66,26 +57,23 @@ def main() -> None:
     # print(system)
 
     thermostat = BrendsenThermostat(temperature, thermostat_coupling_time)
-    barostat = BrendsenBarostat(pressure, barostat_coupling_time, interval=1, compressibility=1.0 / (1e4 * unit.bar))
+    barostat = BrendsenBarostat(
+        pressure,
+        barostat_coupling_time,
+        interval=1,
+        compressibility=1.0 / (1e4 * unit.bar),
+    )
     verlet = VerletIntegrator(
         time_step=time_step,
         system_couplings=[
             thermostat,
-            barostat,
-            ],
-    )
-    lagevin = LangevinIntegrator(
-        time_step=time_step,
-        damping_time=10 * time_step, 
-        temperature=temperature,
-        system_couplings=[
             barostat,
         ],
     )
     # print(verlet)
 
     state = StateReporter(interval=100, normalize=False)
-    xyz = XyzReporter("out.xyz", atom_types_map, interval=-1)
+    xyz = XyzReporter("ar.xyz", atom_types_map, interval=1000)
     csv = CSVReporter("/tmp/thermo.csv", interval=1000, ignore_first_steps=1000)
 
     simulation = Simulation(

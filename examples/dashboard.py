@@ -8,8 +8,8 @@ st.title("MD Simulation Monitor")
 placeholder = st.empty()
 
 # cols = ["PotEng", "TotEng", "KinEng"]
-cols = ["Press"] 
-# cols = ["Density"] 
+# cols = ["Press"] 
+cols = ["Density"] 
 # cols = ["AvgNgh"] 
 
 while True:

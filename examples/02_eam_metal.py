@@ -1,5 +1,4 @@
 import numpy as np
-from ase.io import read as read_ase
 from ase import Atoms as AseAtoms
 from ase.build import bulk
 from ase.md.velocitydistribution import (
@@ -100,7 +99,7 @@ def main() -> None:
     )
     print(simulation)
 
-    simulation.step(10)
+    simulation.step()
     simulation.step(10_000)
     simulation.step(100_000)
 
