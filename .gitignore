@@ -1,4 +1,5 @@
 __pycache__/
+.ipynb_checkpoints/
 
 # pixi environments
 .pixi
@@ -8,7 +9,8 @@ __pycache__/
 
 refs
 input.data
-
+*.png
+*.csv
 
 log.lammps
 *.lammpstrj

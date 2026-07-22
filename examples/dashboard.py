@@ -9,8 +9,13 @@ placeholder = st.empty()
 
 # cols = ["PotEng", "TotEng", "KinEng"]
 # cols = ["Press"] 
-cols = ["Density"] 
+# cols = ["Density"] 
 # cols = ["AvgNgh"] 
+cols = ["PotEng"] 
+
+
+# index_col = "Step"
+index_col = "Temp"
 
 while True:
     try:
@@ -18,7 +23,7 @@ while True:
 
         with placeholder.container():
             st.line_chart(
-                df.set_index("Step")[cols]
+                df.set_index(index_col)[cols]
             )
         time.sleep(0.5)
 
