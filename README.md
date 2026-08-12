@@ -12,6 +12,7 @@ Features:
 - [x] NVE, NVT, and NPT ensembles (Brendsen)
 - [x] Non-bonded short-range interaction (Lennard-Jones)
 - [x] Metals (EAM potential) 
+- [x] Energy minimization (Gradient Descent)
 - [ ] Molecules 
 - [ ] Bonded interactions (bonds, angles, dihedrals)
 - [ ] Long-range interaction (Coulomb)

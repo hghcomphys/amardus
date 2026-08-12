@@ -10,7 +10,7 @@ from numpy import random
 KB = get_default_unit().boltzman
 
 
-class IntegrationInterface(Protocol):
+class IntegratorInterface(Protocol):
     time_step: float
     current_step: int
 
@@ -20,7 +20,7 @@ class IntegrationInterface(Protocol):
 
 
 @dataclass
-class VerletIntegrator(IntegrationInterface):
+class VerletIntegrator(IntegratorInterface):
     time_step: float
     current_step: int = field(repr=False, default=0)
     system_couplings: list[ThermoBaroInterface] = field(default_factory=list)
@@ -37,7 +37,7 @@ class VerletIntegrator(IntegrationInterface):
 
 
 @dataclass
-class LeapfrogIntegrator(IntegrationInterface):
+class LeapfrogIntegrator(IntegratorInterface):
     time_step: float
     current_step: int = field(repr=False, default=0)
     system_couplings: list[ThermoBaroInterface] = field(default_factory=list)
@@ -55,7 +55,7 @@ class LeapfrogIntegrator(IntegrationInterface):
 
 
 @dataclass
-class LangevinIntegrator(IntegrationInterface):
+class LangevinIntegrator(IntegratorInterface):
     time_step: float
     damping_time: float
     temperature: float
