@@ -8,7 +8,7 @@ This is a personal project intended for learning, experimentation, and understan
 
 **Implemented:**
 
-- [x] [Linear scaling MD](https://github.com/hghcomphys/linear-md) based on linked cell and Verlet list
+- [x] [Linear-scaling MD](https://github.com/hghcomphys/linear-md) based on linked cell and Verlet list
 - [x] Verlet, langevin, and Leapfrog integrators
 - [x] NVE, NVT, and NPT ensembles (Brendsen)
 - [x] Non-bonded short-range interaction (Lennard-Jones)
@@ -166,16 +166,14 @@ Step     Temp           Press          PotEng         KinEng         TotEng     
 20000    289.88411665   4072.07466998  -17.59291636   32.37447999    14.78156363    76.98611111    1.24471987    
 ...
 100000   299.33541346   3995.29557864  -15.87360252   33.43000805    17.55640553    78.30324074    1.24471987    
-
 ```
 
 Initial configuration      |  After 100ps 
 :-------------------------:|:-------------------------:
-<img src="docs/images/ar-ne-mix.png" >  |  <img src="docs/images/ar-ne-mix2.png" >
+<img src="docs/images/ar-ne-mix.png" width="98%" >  |  <img src="docs/images/ar-ne-mix2.png" width="100%" >
 
 
-
-See [this](exmaples/01_lj_Ar.ipynb) example notebook for more details.
+See [this](examples/01_lj_Ar.ipynb) example notebook for more details.
 
 
 ## Example 2: EAM potential
@@ -262,4 +260,4 @@ Output:
 
 <img src="docs/images/cu-melting.png" width="60%">
 
-See [this](exmaples/02_eam_Cu.ipynb) example notebook for more details.
+See [this](examples/02_eam_Cu.ipynb) example notebook for more details.
